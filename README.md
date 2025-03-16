@@ -14,5 +14,5 @@ I will record what I do in each step in a separate directory, and may adding som
 
 ## Limitations
 
-* Static IP : I will set up static IP for both master node and worker node. maybe to update it later to DHCP but not gurranteed. 
+* Static IP : I will set up static IP for both master node and worker node. maybe to update it later to DHCP but not gurranteed.
 * Disable SELinux  : I know OpenShift needs it up, but for now, I focus on pure k8s setup. and for simplicity, I just disable it.

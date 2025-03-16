@@ -1,0 +1,22 @@
+#cloud-config for master
+hostname: k8s-master
+fqdn: k8s-master.localhost.localdomain
+manage_etc_hosts: true
+users:
+  - name: lgao
+    ssh-authorized-keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDHaBvQj6zRWgV7LGL+vNYcl7arTnjQ7iR8CYajLUjEw+hvYtowSb0o+jDiwKUtfILpKYmdspthp5ULAWo80wZZVZ/srHiEKH0BCAl39j7YWcNxePgy9m317Nnr+o/0D45AmGlH716XuOHr4Dot7XF/wzCAshru5COC0kz5Tz75F2+DnLN98VRW4zdXs7sQBwliVWPfytRCtYXRWRrRJTBB6Bir1eOzPsUwQ+c44Rn+t2N6bWe9TE4qc4nQwLdYqWtUhZWRDgm5Jxtik1qBa0PPq7OrVPGedgnsQoMUuJSdy6Q90pXfectusmsCliGsXbDQh//vuVLyrDr8mubrt0C7Tr9b7zNRyQ5IXTiTx8nodmE+/8UWahsKJs/Tw22H++TlgqDq/afZDxo7DKSv3nQ6eDzF4nX0sJQ7C7UZHPjZejiuQOrJadyEdFsafz112d8GcPL8UiH4geB2UkVysztp6ViIor+aWTXslmRbnVsI05AF/ZO1BOQwRQKa2zTla9M= lgao@lins-p1
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    groups: wheel
+    shell: /bin/bash
+chpasswd:
+  list: |
+    lgao:password
+  expire: False
+runcmd:
+  - systemctl enable cloud-init
+  - hostnamectl set-hostname k8s-master
+  - systemctl restart NetworkManager
+  - echo "192.168.122.10   k8s-master" >> /etc/hosts
+  - echo "192.168.122.11   k8s-worker" >> /etc/hosts
+  - echo "Custom configuration complete!"
