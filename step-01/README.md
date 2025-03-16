@@ -97,6 +97,54 @@ virsh undefine k8s-worker
 # rm -rf ~/images/k8st/k8s-worker.qcow2
 ```
 
+## Verification
+
+When both VMs created, run them:
+
+```bash
+virsh start k8s-master
+virsh start k8s-worker
+```
+
+and log into the vms from host:
+(adds the ip to /etc/hosts in host machine)
+
+```bash
+ssh lgao@k8s-master
+ssh lgao@k8s-worker
+```
+
+In k8s-master, run:
+```bash
+[lgao@k8s-master ~]$ ping -c 3 k8s-worker
+PING k8s-worker (192.168.122.11) 56(84) bytes of data.
+64 bytes from k8s-worker (192.168.122.11): icmp_seq=1 ttl=64 time=0.416 ms
+64 bytes from k8s-worker (192.168.122.11): icmp_seq=2 ttl=64 time=0.716 ms
+64 bytes from k8s-worker (192.168.122.11): icmp_seq=3 ttl=64 time=0.773 ms
+
+--- k8s-worker ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2050ms
+rtt min/avg/max/mdev = 0.416/0.635/0.773/0.156 ms
+```
+
+In k8s-worker, run:
+
+```bash
+[lgao@k8s-worker ~]$ ping -c 3 k8s-master
+PING k8s-master (192.168.122.10) 56(84) bytes of data.
+64 bytes from k8s-master (192.168.122.10): icmp_seq=1 ttl=64 time=0.404 ms
+64 bytes from k8s-master (192.168.122.10): icmp_seq=2 ttl=64 time=0.221 ms
+64 bytes from k8s-master (192.168.122.10): icmp_seq=3 ttl=64 time=0.760 ms
+
+--- k8s-master ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2079ms
+rtt min/avg/max/mdev = 0.221/0.461/0.760/0.223 ms
+```
+
+Now, the 2 nodes are configured.
+
+Let's move to the next step.
+
 ## Notes
 
 * It would be good to dig deeper on the cloud init to configure the server using Ansible.
