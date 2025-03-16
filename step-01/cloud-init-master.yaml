@@ -1,7 +1,7 @@
 #cloud-config for master
 hostname: k8s-master
 fqdn: k8s-master.localhost.localdomain
-manage_etc_hosts: true
+manage_etc_hosts: false
 users:
   - name: lgao
     ssh-authorized-keys:

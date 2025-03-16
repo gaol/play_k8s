@@ -52,4 +52,7 @@ virsh undefine k8s-master
 # rm -rf ~/images/k8st/k8s-master.qcow2
 ```
 
+### Notes
+
+* It would be good to dig deeper on the cloud init to configure the server using Ansible.
 
