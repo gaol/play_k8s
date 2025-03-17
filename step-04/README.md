@@ -108,8 +108,8 @@ and service account keys on each node and then running the following as root:
 
 Then you can join any number of worker nodes by running the following on each as root:
 
-kubeadm join 192.168.122.10:6443 --token k1sm62.fzh3kv9e6fq4tthm \
-	--discovery-token-ca-cert-hash sha256:255560e9b1be155aafeb91fa8d7c204d14c39f946d75c429dd0bc01d14e9a15b
+kubeadm join 192.168.122.10:6443 --token czmkp6.6lfc1rk4n4tf5r77 \
+	--discovery-token-ca-cert-hash sha256:71d5cfdf7b1f0aff0e3ea5eb2f2d30980688b340eb7f01944c938e3500609173
 
 ```
 

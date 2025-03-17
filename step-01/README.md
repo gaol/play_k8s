@@ -10,18 +10,16 @@ It is important to make the 2 nodes to connect each other, better by hostnames.
 ### Master Node
 
 * 2 vCPUs, 2GB memory, 20GB disk
-* KVM OS: `Fedora 41 Cloud` minimal set up.
-* Root password: `R0otPasswD`
+* KVM OS: `Fedora 40 Cloud` minimal set up.
 * Static IP: `192.168.122.10`
 * HostName: `k8s-master`
 * Disk Path: `~/images/k8s/k8s-master.qcow2`, size: `20GB`
-*
 
 #### Commands:
 
 * Download the predefined qcow2 file:
 ```bash
-wget -O ~/images/k8s/k8s-master.qcow2 https://ix-denver.mm.fcix.net/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2
+wget -O ~/images/k8s/k8s-master.qcow2 https://dl.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2
 ```
 
 or you can download it to a backup place, and copy it to `/home/lgao/images/k8s/k8s-master.qcow2` when needed.
@@ -55,18 +53,16 @@ virsh undefine k8s-master
 ### Worker Node
 
 * 2 vCPUs, 2GB memory, 10GB disk
-* KVM OS: `Fedora 41 Cloud` minimal set up.
-* Root password: `R0otPasswD`
+* KVM OS: `Fedora 40 Cloud` minimal set up.
 * Static IP: `192.168.122.11`
 * HostName: `k8s-worker`
 * Disk Path: `~/images/k8s/k8s-worker.qcow2`, size: `20GB`
-*
 
 #### Commands:
 
 * Download the predefined qcow2 file:
 ```bash
-wget -O ~/images/k8s/k8s-worker.qcow2 https://ix-denver.mm.fcix.net/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2
+wget -O ~/images/k8s/k8s-worker.qcow2 https://dl.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2
 ```
 
 or you can download it to a backup place, and copy it to `/home/lgao/images/k8s/k8s-worker.qcow2` when needed.
