@@ -11,10 +11,9 @@ Install `containerd` as it is the industry standard container runtime for kubern
 sudo dnf install -y containerd
 sudo systemctl enable --now containerd
 ```
-
 Now, the file `/etc/containerd/config.toml` was created.
 
-### Configure `containerd` to enable CRI plugin:
+### Configure `containerd` to use systemd cgroup:
 
 ```bash
 # the following line will generate default configs to the confi.toml file
@@ -31,6 +30,19 @@ sudo systemctl restart containerd
 #sudo crictl config image-endpoint unix:///run/containerd/containerd.sock
 
 ```
+### Set up proxy for containerd
+
+It happens often that you cannot pull docker images from docker hub in China, so you can add a proxy to the containerd service:
+
+```bash
+# In file: /usr/lib/systemd/system/containerd.service
+[Service]
+ExecStartPre=-/sbin/modprobe overlay
+ExecStart=/usr/bin/containerd
+Environment="HTTP_PROXY=http://squid.xxx.xxx:3128/" # specify your squid setup here
+```
+
+Or you can add a mirror to it.
 
 ## Install kubeadm, kubelet, kubect
 

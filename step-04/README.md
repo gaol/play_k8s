@@ -25,7 +25,7 @@ Now you will get the similar logs:
 ```bash
 [lgao@k8s-master ~]$ sudo kubeadm init \
   --apiserver-advertise-address=192.168.122.10 \
-  --pod-network-cidr=10.244.0.0/16
+  --pod-network-cidr=10.244.0.0/16 \
   --control-plane-endpoint=k8s-master
 [init] Using Kubernetes version: v1.32.3
 [preflight] Running pre-flight checks
@@ -99,6 +99,13 @@ You should now deploy a pod network to the cluster.
 Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
   https://kubernetes.io/docs/concepts/cluster-administration/addons/
 
+You can now join any number of control-plane nodes by copying certificate authorities
+and service account keys on each node and then running the following as root:
+
+  kubeadm join k8s-master:6443 --token czmkp6.6lfc1rk4n4tf5r77 \
+	--discovery-token-ca-cert-hash sha256:71d5cfdf7b1f0aff0e3ea5eb2f2d30980688b340eb7f01944c938e3500609173 \
+	--control-plane
+
 Then you can join any number of worker nodes by running the following on each as root:
 
 kubeadm join 192.168.122.10:6443 --token k1sm62.fzh3kv9e6fq4tthm \
@@ -163,11 +170,13 @@ replicaset.apps/coredns-668d6bf9bc   2         2         0       39m
 
 ```
 
+These are all the core components needed to set up the k8s cluster.
+
 There is `1` ClusterIP service in the default namespace
 There are some pods, services, daemonset, deployment,replicaset resources in the kube-system namespace.
 
 
-### Set up Network Plugin (Calico)
+### Set up Network Plugin (Flannel)
 
 As we are install the 2 nodes cluster, we need to make the pods in each node can communicate with other pods in different node, so we need a network plugin to work.
 
@@ -177,13 +186,43 @@ pod/coredns-668d6bf9bc-j959r             0/1     Pending   0          39m
 pod/coredns-668d6bf9bc-zpgdx             0/1     Pending   0          39m
 ```
 
-Let's fix it to make them to `Running` status
+#### Install CNI Network Plugin
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/refs/tags/v3.29.2/manifests/calico.yaml
+ARCH=$(uname -m)
+  case $ARCH in
+    armv7*) ARCH="arm";;
+    aarch64) ARCH="arm64";;
+    x86_64) ARCH="amd64";;
+  esac
+mkdir -p /opt/cni/bin
+curl -O -L https://github.com/containernetworking/plugins/releases/download/v1.6.2/cni-plugins-linux-$ARCH-v1.6.2.tgz
+tar -C /opt/cni/bin -xzf cni-plugins-linux-$ARCH-v1.6.2.tgz
 ```
 
+#### Apply Flannel plugin
 
-These are all the core components needed to set up the k8s cluster.
+Flannel makes the pods in 2 nodes can communicate with each other without expose the ports to hosts.
+
+The core component of `kube-proxy` is responsible for routing the requests of a service to the backend pods, like vxlan and iptables.
+
+Try to apply the flannel resources:
+
+```bash
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+```
+
+> NOTE: if you are using differnet pod cidr than `--pod-network-cidr=10.244.0.0/16` when you initilize the cluster in above command, try to download it and modify the pod network range accordingly.
+
+This will create a new namespace: `kube-flannel`, a ConfigMap with the network range set up, a DaemonSet running a pod to serve.
+
+
+* Test master node status:
+```bash
+[lgao@k8s-master ~]$ kubectl get nodes
+NAME         STATUS   ROLES           AGE   VERSION
+k8s-master   Ready    control-plane   80m   v1.32.3
+```
+
 
 Let's see how to set up a worker node to join this cluster.

@@ -56,4 +56,11 @@ sudo reboot
 
 Now, the system configurations of the nodes are done !
 
+Try to copy the `./config.sh` to each node and run.
+
+```bash
+scp config.sh k8s-master:
+scp config.sh k8s-worker:
+```
+
 Let's move to next step.
