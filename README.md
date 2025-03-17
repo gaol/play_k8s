@@ -6,7 +6,7 @@ I will start a study to setup a k8s cluster using `kubeadm` utility in my laptop
 * 1 master node
 * 1 worker node
 
-I will use Fedora 41 cloud minimal installation for both master and worker node as I am a Fedora user.
+I will use Fedora 40 cloud minimal installation for both master and worker node as I am a Fedora user.
 
 The final goal is to set up a full feature k8s cluster step by step.
 
