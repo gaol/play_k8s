@@ -11,10 +11,16 @@ Unless specified, all the following commands are done in all nodes.
 > NOTE: Swap needs to be turned off in k8s to make the metrics more accurate, and avoid OOM killing randomly even for the kubeadm processes.
 
 ```bash
+# update to latest
+sudo dnf update
+
 # turn off swap
 sudo swapoff -a
 
 # turn if off permanently by editing the file `/etc/fstab`, commenting or deleting the line with swap
+
+# In Fedora, which uses ZRAM (compressed RAM disk) for swap functionality, so remove the package:
+sudo dnf remove zram-generator-defaults
 ```
 
 ## Turn off SELinux
