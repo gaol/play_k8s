@@ -83,6 +83,28 @@ The following package needs to be installed in Fedora 41:
 sudo dnf install -y iproute-tc
 ```
 
+### Install CNI Network Plugin
+
+This action needs to be done in both master and worker nodes.
+
+To make the pods from different nodes can communiticate with each other, we need to install a CNI plugin.
+We choose `Flannel` for this small cluster.
+
+First of all, we need to install the CNI plugin binaries to the nodes under `/opt/cni/bin` directory.
+
+
+```bash
+ARCH=$(uname -m)
+  case $ARCH in
+    armv7*) ARCH="arm";;
+    aarch64) ARCH="arm64";;
+    x86_64) ARCH="amd64";;
+  esac
+mkdir -p /opt/cni/bin
+curl -O -L https://github.com/containernetworking/plugins/releases/download/v1.6.2/cni-plugins-linux-$ARCH-v1.6.2.tgz
+tar -C /opt/cni/bin -xzf cni-plugins-linux-$ARCH-v1.6.2.tgz
+```
+
 ## Reboot
 
 Reboot to do next step.

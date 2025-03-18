@@ -24,3 +24,44 @@ I will record what I do in each step in a separate directory, and may adding som
 * containerd full configuration `/etc/containerd/config.toml`
 * crictl configuration: `/etc/crictl.yaml`
 * kubelet service
+
+### core components summary
+
+* CoreDNS:
+   ```In Kubernetes, CoreDNS serves as the default DNS server, providing essential DNS-based service discovery and name resolution services for pods, services, and other resources within the cluster. It enables clients to access services using DNS names instead of IP addresses, simplifying cluster networking.```
+
+* kube-proxy: (service -> pods) `Run on Each Node`
+
+    ```Kube-proxy is a Kubernetes networking component that runs on each node and maintains network rules to enable communication between pods and services, facilitating traffic routing and load balancing within the cluster```
+    ```It makes sure a request to a service will be load balanced to different pods according to the replicaset.```
+
+* kube-flannel:(pods <-> pods) make it possible for pods in different nodes can connect to each other (a virtual subnet)  (`Run on Each Node`)
+    ```In Kubernetes, kube-flannel's role is to provide a simple, lightweight layer 3 network fabric, enabling pods to communicate across different nodes within the cluster by assigning each node a subnet and using VXLAN for packet encapsulation```
+    ```Flannel is a Container Network Interface (CNI) plugin. There are other plugins as well.```
+
+* HAProxy | ingress  :: external load distribution ; reverse proxy(TLS termination, routing traffic )
+                  , haproxy -> |  service   ->   pods    |
+                                    ( inside cluster )
+   haproxy normally runs on a dedicated node ( `infrastructure node` )
+   all external requests got to that infrastructure node
+
+   External requests -- haproxy --> service  -- kube-proxy --> pod
+
+   * https://seifrajhi.github.io/blog/kubernetes-networking/
+   * https://medium.com/@rifewang/kubernetes-how-kube-proxy-and-cni-work-together-1255d273f291
+
+   HAProxy works in `LoadBalance` and `NodePort` mode, on the local set up, we use `NodePort`, in public cloud env, it would be `LoadBalance`. The public cloud will provide an ADDRESS for HAProxy service so that it serve outside the cluster.
+
+* kube-apiserver-k8s-master
+
+* kube-controller-manager-k8s-master
+
+* etcd-k8s-master
+
+* kube-scheduler-k8s-master
+
+### Future thinkings
+
+* Some app is quite big, duplicate each container image to different nodes waste lots of spaces, maybe there is a way to share the image without downloading to the nodes ?
+* Will k8s purage the unused images in the node where the deployments have been deleted ?
+* 

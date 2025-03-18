@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: quarkus
+spec:
+  selector:
+    app: quarkus
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080

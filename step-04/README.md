@@ -188,6 +188,8 @@ pod/coredns-668d6bf9bc-zpgdx             0/1     Pending   0          39m
 
 #### Install CNI Network Plugin
 
+This action needs to be done in both master and worker nodes.
+
 ```bash
 ARCH=$(uname -m)
   case $ARCH in

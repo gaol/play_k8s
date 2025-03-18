@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quarkus
+spec:
+  rules:
+    - host: k8s-worker
+      http:
+        paths:
+          - path: /hello
+            pathType: Exact
+            backend:
+              service:
+                name:  quarkus
+                port:
+                  number: 80
