@@ -4,7 +4,7 @@ This is the repository recording my journey to k8s
 I will start a study to setup a k8s cluster using `kubeadm` utility in my laptop which has:
 
 * 1 master node
-* 1 worker node
+* 2 worker nodes: 1 of them `k8s-worker` acts also as the cluster front because HAProxy is installed there.
 
 I will use Fedora 40 cloud minimal installation for both master and worker node as I am a Fedora user.
 

@@ -85,5 +85,29 @@ Run 'kubectl get nodes' on the control-plane to see this node join the cluster.
 Then, wait until it gets ready so that you see:
 
 ```bash
-kubectl get node
+[lgao@k8s-master ~]$ kubectl get node
+NAME          STATUS   ROLES           AGE     VERSION
+k8s-master    Ready    control-plane   2d20h   v1.32.3
+k8s-worker    Ready    <none>          2d18h   v1.32.3
+k8s-worker2   Ready    <none>          16m     v1.32.3
 ```
+
+So maybe it is time to label the nodes accordingly:
+
+```bash
+# add infra, worker role to k8s-worker node
+[lgao@k8s-master ~]$ kubectl label node k8s-worker node-role.kubernetes.io/infra=infra
+node/k8s-worker labeled
+[lgao@k8s-master ~]$ kubectl label node k8s-worker node-role.kubernetes.io/worker=worker
+node/k8s-worker labeled
+[lgao@k8s-master ~]$ kubectl label node k8s-worker2 node-role.kubernetes.io/worker=worker
+node/k8s-worker2 labeled
+[lgao@k8s-master ~]$ kubectl get nodes
+NAME          STATUS   ROLES           AGE     VERSION
+k8s-master    Ready    control-plane   2d20h   v1.32.3
+k8s-worker    Ready    infra,worker    2d18h   v1.32.3
+k8s-worker2   Ready    worker          27m     v1.32.3
+
+```
+
+> NOTE: if you want to delete the label, just add a `-` at the end: `kubectl label node k8s-worker node-role.kubernetes.io/infra-`
