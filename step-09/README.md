@@ -208,3 +208,55 @@ If you want to swith to kube-admin, set the environment:
 ```bash
 export KUBECONFIG=~/.kube/admin.conf
 ```
+
+
+
+### NOTES
+
+* Check if the private key and certificate matches:
+
+```bash
+openssl x509 -noout -modulus -in developer.crt | openssl md5
+openssl rsa -noout -modulus -in developer.key | openssl md5
+
+# check if certificates expire
+openssl x509 -in developer.crt -enddate -noout
+```
+
+* Check against k8s resources:
+
+```bash
+# list all clusterrolebindings
+kubectl get clusterrolebinding -o yaml
+
+# check if developer user can create pods
+kubectl auth can-i create pods --as=developer
+
+# check apiserver logs
+kubectl logs -n kube-system -l component=kube-apiserver
+
+# get the certificatesigningrequest resource called `developer-csr`
+kubectl get csr developer-csr -o yaml
+
+# Approve the csr
+kubectl certificate approve developer-csr
+
+# Gets the certificate and download to local for kubeconfig setup.
+kubectl get csr developer-csr -o jsonpath='{.status.certificate}' | base64 --decode > developer.crt
+
+# create a new namespace
+kubectl create namespace test-namespace
+
+# set up an ngnix server using docker image
+kubectl create deployment nginx --image=nginx -n test-namespace
+
+# expose the service
+kubectl expose deployment nginx --port=80 --type=NodePort -n test-namespace
+
+# create ingress so that it can be accessed outside of the cluster
+kubectl create ingress nginx --rule="example.com/=nginx:80" -n test-namespace
+
+# Scale the deployment to 3 pods
+kubectl scale deployment nginx --replicas=3 -n test-namespace
+
+```
