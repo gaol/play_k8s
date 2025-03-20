@@ -1,7 +1,7 @@
-#cloud-config for master
-hostname: k8s-master
+#cloud-config for worker
+hostname: k8s-worker2
 timezone: Asia/Shanghai
-fqdn: k8s-master
+fqdn: k8s-worker2
 manage_etc_hosts: false
 users:
   - name: lgao

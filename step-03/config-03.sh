@@ -30,3 +30,12 @@ sudo crictl config image-endpoint unix:///run/containerd/containerd.sock
 
 sudo systemctl enable --now kubelet
 
+ARCH=$(uname -m)
+  case $ARCH in
+    armv7*) ARCH="arm";;
+    aarch64) ARCH="arm64";;
+    x86_64) ARCH="amd64";;
+  esac
+sudo mkdir -p /opt/cni/bin
+sudo curl -O -L https://github.com/containernetworking/plugins/releases/download/v1.6.2/cni-plugins-linux-$ARCH-v1.6.2.tgz
+sudo tar -C /opt/cni/bin -xzf cni-plugins-linux-$ARCH-v1.6.2.tgz

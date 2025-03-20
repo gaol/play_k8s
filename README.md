@@ -102,6 +102,7 @@ I will record what I do in each step in a separate directory, and may adding som
    - A dedicated volume like ssd would be better for the performance, each etcd has it's own copy of data, so there is no need to share the data.
    - Use `etcdctl snapshot save | restore` for the backup and recovery for the etcd data migration.
    - specify `--initial-cluster=etcd1=http://<MASTER_1_IP>:2380,etcd2=http://<MASTER_2_IP>:2380,etcd3=http://<MASTER_3_IP>:2380` when startsup.
+   - etcd is strong consistent, real-time consistency.
 
 * kube-scheduler-k8s-master : planner
    - decide where to place Pods (containers) across your cluster’s worker nodes
@@ -126,10 +127,11 @@ I will record what I do in each step in a separate directory, and may adding som
 * There is a no-proxy solution.
 
 ### TODO
-* Configure kube-proxy to use `ipvs` mode explicitly.
-* Create a developer user account and run against the cluster from the host.
-* Add another worker node
-* Deloy Redis cluster on 2 worker nodes
-* Deploy Kafka cluster on 2 worker ndoes
-* Setup a private image registry.
-* A customized operator
+[] Configure kube-proxy to use `ipvs` mode explicitly.
+[] Create a developer user account and run against the cluster from the host.
+[x] Add another worker node  --> DONE in `step 07`
+[] Deloy Redis cluster on 2 worker nodes
+[] Deploy Kafka cluster on 2 worker ndoes
+[] Setup a private image registry.
+[] A customized operator
+[] A customized qcow2 template.
