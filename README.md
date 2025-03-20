@@ -127,11 +127,12 @@ I will record what I do in each step in a separate directory, and may adding som
 * There is a no-proxy solution.
 
 ### TODO
-[] Configure kube-proxy to use `ipvs` mode explicitly.
-[] Create a developer user account and run against the cluster from the host.
-[x] Add another worker node  --> DONE in `step 07`
-[] Deloy Redis cluster on 2 worker nodes
-[] Deploy Kafka cluster on 2 worker ndoes
-[] Setup a private image registry.
-[] A customized operator
-[] A customized qcow2 template.
+
+- [ ] Configure kube-proxy to use `ipvs` mode explicitly.
+- [ ] Create a developer user account and run against the cluster from the host.
+- [x] Add another worker node  --> DONE in `step 07`
+- [ ] Deloy Redis cluster on 2 worker nodes
+- [ ] Deploy Kafka cluster on 2 worker ndoes
+- [ ] Setup a private image registry.
+- [ ] A customized operator
+- [ ] A customized qcow2 template.
