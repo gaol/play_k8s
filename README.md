@@ -131,10 +131,10 @@ I will record what I do in each step in a separate directory, and may adding som
 - [x] Add another worker node  --> DONE in `step 07`
 - [x] Configure remote access using `kubectl config`  --> DONE in `step 08`
 - [x] Create a developer user account and run against the cluster from the host.  --> DONE in `step-09`
+- [x] Setup a private image registry.  --> DONE in `step-10`
+- [ ] A customized operator  --> in process at `AITrigram` repo
 - [ ] Deloy Redis cluster on 2 worker nodes
 - [ ] Deploy Kafka cluster on 2 worker ndoes
-- [ ] Setup a private image registry.
-- [ ] A customized operator
 - [ ] A customized qcow2 template.
 - [ ] Configure kube-proxy to use `ipvs` mode explicitly.
 - [ ] Configure an OIDC provider(KeyCloak) for the account mangement.
