@@ -61,7 +61,11 @@ kubectl apply -f https://github.com/haproxytech/kubernetes-ingress/raw/refs/tags
 
 > NOTE: it requires memory to be `2560`, you may update it first before applying to k8s.
 
-> NOTE: it also specify a NodePort service with tcp/80 -> tcp/8080, so it needs your app listening on the 8080 port inside of the container.
+> NOTE: The haproxy ingress starts a NodePort service which has:
+
+* NodePort: 31726 // port opened on the node
+* Port:  80  // the port opened on the cluster wide, so that other services/pods inside of the cluster can access it
+* TargetPort: 8080   // the haproxy-ingress pod runs in namespace: haproxy-controller is listening on this port.
 
 This will create the following resources:
 
