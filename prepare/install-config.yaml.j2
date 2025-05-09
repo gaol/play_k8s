@@ -1,0 +1,39 @@
+apiVersion: v1
+baseDomain: {{ base_domain }}
+metadata:
+  name: {{ cluster_name }}
+networking:
+  networkType: OVNKubernetes
+  clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+  serviceNetwork:
+    - 172.30.0.0/16
+controlPlane:
+  name: master
+  replicas: {{ master_count }}
+compute:
+  - name: worker
+    replicas: {{ worker_count }}
+    hyperthreading: Enabled
+platform:
+  none: {}
+capabilities:
+  baselineCapabilitySet: None
+  additionalEnabledCapabilities:
+    - baremetal
+    - Ingress
+    - Build
+    - MachineAPI
+    - marketplace
+    - OperatorLifecycleManager
+    - OperatorLifecycleManagerV1
+    - CloudControllerManager
+    - CloudCredential
+    - NodeTuning
+    - openshift-samples
+    - CSISnapshot
+    - Console
+    - Storage
+pullSecret: '{{ pull_secret }}'
+sshKey: '{{ ssh_public_key }}'

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import click
 import re
 import jinja2
@@ -49,20 +50,23 @@ def get_network_template():
     """
 
 @click.command()
-@click.option('--network_file', default='network.yaml', help='Output file path for the libvirt network definition')
+@click.option('--network_file', default='network.xml', help='Output file path for the libvirt network definition')
 @click.option('--systemd-resolved-conf-file', default='libvirt_dnsmasq.conf', help='Output file path for the additional DNS aliases like the api.<cluster-name>.<base_domain>')
+@click.option('--install-config', default="install-config.yaml", help='The install-config.yaml file to generate')
+@click.option('--pull-secret-file', default="pull-secret.txt", help='The pull secret file where the pull secret is downloaded to')
+@click.option('--ssh-public-key-file', default="~/.ssh/id_rsa.pub", help='The ssh public key file')
 @click.option('--cluster-name', default=None, help='Cluster name')
 @click.option('--base-domain', default=None, help='Base domain')
 @click.option('--network-name', default=None, help='Network name for libvirt')
 @click.option('--bridge-name', default=None, help='Bridge network name')
 @click.option('--dhcp-start', default=None, help='DHCP start IP')
 @click.option('--dhcp-end', default=None, help='DHCP end IP')
-@click.option('--master-count', type=int, default=None, help='Number of master nodes')
-@click.option('--worker-count', type=int, default=None, help='Number of worker nodes')
+@click.option('--master-count', type=int, default=2, help='Number of master nodes')
+@click.option('--worker-count', type=int, default=1, help='Number of worker nodes')
 @click.option('--master-prefix', default="master", help='Master node prefix')
 @click.option('--worker-prefix', default="worker", help='Worker node prefix')
 def main(network_file, systemd_resolved_conf_file, cluster_name, base_domain, network_name, bridge_name,
-            dhcp_start, dhcp_end, master_count, worker_count, master_prefix, worker_prefix):
+            dhcp_start, dhcp_end, master_count, worker_count, master_prefix, worker_prefix, install_config, pull_secret_file, ssh_public_key_file):
 
     """ *** Prepare Kubernetes / OpenShift Cluster Configuration *** """
     click.echo(click.style("""
@@ -111,9 +115,13 @@ After the generation, you will see the an instruction printed to guide you for t
 
     # Get VM count for masters and workers
     master_count = master_count if master_count is not None else click.prompt(
-        "How many master nodes do you want to create?", type=click.IntRange(1, 10), default=3)
+        "How many master nodes do you want to create?", type=click.IntRange(1, 10), default=2)
     worker_count = worker_count if worker_count is not None else click.prompt(
         "How many worker nodes do you want to create?", type=click.IntRange(0, 100), default=1)
+
+    install_config = install_config or click.prompt("Which file to generate the install config", default="install-config.yaml")
+    pull_secret_file = pull_secret_file or click.prompt("Which file to read the pull_secret from", default="pull-secret.txt")
+    ssh_public_key_file = ssh_public_key_file or click.prompt("Which file to read the ssh public key", default="~/.ssh/id_rsa.pub")
 
     # This list will collect all VM configurations
     vms = []
@@ -230,6 +238,39 @@ Domains=~{{ base_domain }}
     dig +noall +answer -x 192.168.100.102
 
     """, fg="green"))
+
+    # Get the absolute path of the current .py file
+    file_path = os.path.abspath(__file__)
+    # Get the directory of the .py file
+    directory = os.path.dirname(file_path)
+    full_path = os.path.join(directory, "install-config.yaml.j2")
+    try:
+        with open(pull_secret_file, "r") as file:
+            pull_secret = file.read().strip()
+        with open(os.path.expanduser(ssh_public_key_file), "r") as file:
+            ssh_public_key = file.read().strip()
+        install_config_conf_data = {
+            "cluster_name": cluster_name,
+            "base_domain": base_domain,
+            "master_count": master_count,
+            "worker_count": worker_count,
+            "pull_secret": pull_secret,
+            "ssh_public_key": ssh_public_key
+        }
+
+        with open(full_path, "r") as file:
+          template_content = file.read()
+
+        template = jinja2.Template(template_content)
+        result = template.render(**install_config_conf_data)
+
+        # Write to output file
+        with open(install_config, 'w') as f:
+            f.write(result)
+
+        click.echo(click.style(f"Configuration successfully written to the install-config.yaml file: {install_config}", fg="green"))
+    except Exception as e:
+        click.echo(click.style(f"Error during template rendering: {str(e)}", fg="red"))
 
 if __name__ == '__main__':
     main()

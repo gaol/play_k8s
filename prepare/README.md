@@ -29,3 +29,25 @@ The script will:
 - Configure libvirt's dnsmasq for DNS resolution and DHCP
 - Update systemd-resolved configuration to forward VM domain queries to libvirt's dnsmasq
 - Ensure proper hostname resolution between host and VMs
+
+## Steps to install OCP 4.18 on UPI
+
+- prepare dns/dhcp
+
+  > ./prepare.py
+
+- prepare the install-config.yaml
+
+- generate manifests
+
+- prepare ignition configs
+  > openshift-install create install-config --dir=install_dir
+  > or use a template instead of interaction mode
+- create bootstrap VM
+
+  > after creation of install-config.yaml file in the install_dir folder, run:
+  > ./openshift-install create ignition-configs --dir=install_dir
+  > NOTE: after generating the ignition files, the install-config.yaml file gets removed
+
+- Create control-plane VMs
+- Create worker VMs

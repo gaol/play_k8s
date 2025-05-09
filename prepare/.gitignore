@@ -1,2 +1,5 @@
 libvirt_dnsmasq.conf
 network.yaml
+network.xml
+pull-secret.txt
+install-config.yaml
