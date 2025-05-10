@@ -1,6 +1,9 @@
-# DNS and DHCP Preparation for OpenShift UPI Deployment
+# Preparation for OpenShift UPI Deployment
 
-This project prepares DNS and DHCP services for installing a local OpenShift cluster with User Provisioned Infrastructure (UPI), leveraging libvirt's built-in dnsmasq and system's systemd-resolved.
+This project prepares:
+
+- DNS and DHCP services for installing a local OpenShift cluster with User Provisioned Infrastructure (UPI), leveraging libvirt's built-in dnsmasq and system's systemd-resolved.
+- install-config.yaml file to be used to generate manifests and ignition files
 
 ## Overview
 
@@ -16,38 +19,47 @@ The `prepare.py` script automates the setup of:
 - systemd-resolved service on host
 - Root or sudo access on the host
 
-## Usage
-
-Run the preparation script to set up DNS and DHCP:
-
-```bash
-sudo python3 prepare.py
-```
-
-The script will:
-
-- Configure libvirt's dnsmasq for DNS resolution and DHCP
-- Update systemd-resolved configuration to forward VM domain queries to libvirt's dnsmasq
-- Ensure proper hostname resolution between host and VMs
-
 ## Steps to install OCP 4.18 on UPI
 
-- prepare dns/dhcp
+- prepare dns/dhcp and the install-config.yaml file:
 
   > ./prepare.py
 
-- prepare the install-config.yaml
+- Download the following files to the current directory:
+
+  - openshift-install # The binary installer program
+  - rhcos-live-initramfs.x86_64.img # the initramfs image
+  - rhcos-live-kernel-x86_64 # The kernel for for the coreos
+  - rhcos-live-rootfs.x86_64.img # The rootfs during the installation
 
 - generate manifests
 
+  > mkdir -p install-dir && rm -rf install-dir/\*
+  > cp install-config.yaml install-dir/
+  > ./openshift-install create manifests --dir=install-dir
+
+NOTE: Check the manifests and do your customization there
+
 - prepare ignition configs
-  > openshift-install create install-config --dir=install_dir
-  > or use a template instead of interaction mode
+
+  > ./openshift-install create ignition-configs --dir=install-dir
+  > NOTE: the manifests will be used to generate the ignition configs, and the manifest files will be removed.
+
+- Start http server to serve the assets:
+
+  > sudo firewall-cmd --zone=libvirt --add-port=8080/tcp --permanent
+  > sudo firewall-cmd --reload
+  > python -m http.server 8080
+
 - create bootstrap VM
 
-  > after creation of install-config.yaml file in the install_dir folder, run:
-  > ./openshift-install create ignition-configs --dir=install_dir
-  > NOTE: after generating the ignition files, the install-config.yaml file gets removed
+  ```bash
+  sudo bash -x install_bootstrap.ocp-cluster.ocp.lan.sh
+  ```
 
 - Create control-plane VMs
 - Create worker VMs
+
+```
+
+```

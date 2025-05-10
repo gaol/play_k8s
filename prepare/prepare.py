@@ -49,6 +49,22 @@ def get_network_template():
 </network>
     """
 
+def get_virt_install_vm_template():
+    return """#!/bin/bash
+kernel=http://{{ host_network_ip }}:8080/rhcos-live-kernel-x86_64
+initrd=http://{{ host_network_ip }}:8080/rhcos-live-initramfs.x86_64.img
+kernel_args='ip=dhcp rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes coreos.inst.install_dev=/dev/vda coreos.live.rootfs_url=http://{{ host_network_ip }}:8080/rhcos-live-rootfs.x86_64.img coreos.inst.ignition_url=http://{{ host_network_ip }}:8080/install-dir/{{ vm.type }}.ign'
+
+virt-install --name={{ vm.host_names | first }} \
+  --memory=16384 --vcpus=4 \
+  --disk path={{ libvirt_pool_dir }}/{{ vm.host_names | first }}.qcow2,size=10 \
+  --network network={{ network_name }},mac={{ vm.mac }} \
+  --os-variant rhel9.4 \
+  --graphics=none \
+  --install kernel=${kernel},initrd=${initrd},kernel_args_overwrite=yes,kernel_args="${kernel_args}"
+
+"""
+
 @click.command()
 @click.option('--network_file', default='network.xml', help='Output file path for the libvirt network definition')
 @click.option('--systemd-resolved-conf-file', default='libvirt_dnsmasq.conf', help='Output file path for the additional DNS aliases like the api.<cluster-name>.<base_domain>')
@@ -65,8 +81,9 @@ def get_network_template():
 @click.option('--worker-count', type=int, default=1, help='Number of worker nodes')
 @click.option('--master-prefix', default="master", help='Master node prefix')
 @click.option('--worker-prefix', default="worker", help='Worker node prefix')
+@click.option('--libvirt-pool-dir', default="~/images/ocp", help='The libvirtd pool directory')
 def main(network_file, systemd_resolved_conf_file, cluster_name, base_domain, network_name, bridge_name,
-            dhcp_start, dhcp_end, master_count, worker_count, master_prefix, worker_prefix, install_config, pull_secret_file, ssh_public_key_file):
+            dhcp_start, dhcp_end, master_count, worker_count, master_prefix, worker_prefix, install_config, pull_secret_file, ssh_public_key_file, libvirt_pool_dir):
 
     """ *** Prepare Kubernetes / OpenShift Cluster Configuration *** """
     click.echo(click.style("""
@@ -122,6 +139,8 @@ After the generation, you will see the an instruction printed to guide you for t
     install_config = install_config or click.prompt("Which file to generate the install config", default="install-config.yaml")
     pull_secret_file = pull_secret_file or click.prompt("Which file to read the pull_secret from", default="pull-secret.txt")
     ssh_public_key_file = ssh_public_key_file or click.prompt("Which file to read the ssh public key", default="~/.ssh/id_rsa.pub")
+    libvirt_pool_dir = libvirt_pool_dir or click.prompt("Where to put the VM qcow2 files ? ", default="~/images/ocp")
+    libvirt_pool_dir = os.path.expanduser(libvirt_pool_dir)
 
     # This list will collect all VM configurations
     vms = []
@@ -131,7 +150,7 @@ After the generation, you will see the an instruction printed to guide you for t
 
     # Add bootstrap node
     vms.append({
-        "host_names": [f"bootstrap.{cluster_name}.{base_domain}"],
+        "host_names": [f"bootstrap.{cluster_name}.{base_domain}", f"api.{cluster_name}.{base_domain}", f"api-int.{cluster_name}.{base_domain}"],
         "ip": f"{ip_base}{ip_start}",
         "mac": "52:54:00:00:00:01",
         "type": "bootstrap"
@@ -144,7 +163,7 @@ After the generation, you will see the an instruction printed to guide you for t
         "host_names": [f"ingress.{cluster_name}.{base_domain}", f"*.apps.{cluster_name}.{base_domain}"],
         "ip": f"{ip_base}{ip_start}",
         "mac": "52:54:00:00:00:02",
-        "type": "ingress"
+        "type": "worker"
     })
     # Increment IP start for the rest of the nodes
     ip_start += 1
@@ -271,6 +290,28 @@ Domains=~{{ base_domain }}
         click.echo(click.style(f"Configuration successfully written to the install-config.yaml file: {install_config}", fg="green"))
     except Exception as e:
         click.echo(click.style(f"Error during template rendering: {str(e)}", fg="red"))
+
+    # generate shell scripts to install VMs
+    for vm in vms:
+        print(vm)
+        try:
+            libvirt_install_data = {
+                "vm": vm,
+                "libvirt_pool_dir": libvirt_pool_dir,
+                "network_name": network_name,
+                "host_network_ip": host_network_ip
+            }
+            template_content = get_virt_install_vm_template()
+            template = jinja2.Template(template_content)
+            result = template.render(**libvirt_install_data)
+
+            # Write to output file
+            with open(f"install_{vm["host_names"][0]}.sh", 'w') as f:
+                f.write(result)
+
+            click.echo(click.style(f"Configuration successfully written to the libvirt installation shell: install_{vm["host_names"][0]}.sh", fg="green"))
+        except Exception as e:
+            click.echo(click.style(f"Error during template rendering: {str(e)}", fg="red"))
 
 if __name__ == '__main__':
     main()
