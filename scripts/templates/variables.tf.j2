@@ -1,0 +1,28 @@
+locals {
+    yaml_content = file("$(path.module)/configs/hosts.yaml")
+    yaml_data = yamldecode(local.yaml_content)
+}
+variable "libvirt_disk_path" {
+  description = "Where the disk qcow2 files are stored"
+  default     = "/home/lgao/images/k8s/"
+}
+
+variable "ubuntu_18_img_url" {
+  description = "ubuntu 18.04 image"
+  default     = "http://cloud-images.ubuntu.com/releases/bionic/release-20191008/ubuntu-18.04-server-cloudimg-amd64.img"
+}
+
+variable "vm_hostname" {
+  description = "vm hostname"
+  default     = "terraform-kvm-ansible"
+}
+
+variable "ssh_username" {
+  description = "The username created for ssh access"
+  default     = "lgao"
+}
+
+variable "ssh_private_key" {
+  description = "the private key to use"
+  default     = "~/.ssh/id_rsa"
+}

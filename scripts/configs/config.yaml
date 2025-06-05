@@ -1,0 +1,70 @@
+# This config file can be used for both Python bootstrap script and Ansible variables
+
+# the terraform libvirt plugin version
+libvirt_provider_version: "0.8.3"
+
+# The libvirt daemon uri
+libvirt_uri: "qemu:///system"
+
+# The image directory where the images are stored
+# please make sure the directory can be written by the libvirtd user
+# if the libvirt_uri points to a remote host, it is recommended to create the directory before execution
+image_dir: "/home/lgao/images/k8s"
+
+# The SSH username and password to access the VM
+ssh:
+  username: "lgao"
+  password: "change-it"
+  public_key_file: "/home/lgao/.ssh/id_rsa.pub"
+
+#os_base_name: "ubuntu-22.04-base"
+os_base_name: "fedora-40"
+
+# The qcow2 format image file to be used for the VM
+#os_base_url: "https://cloud-images.ubuntu.com/releases/noble/release-20250327/ubuntu-24.04-server-cloudimg-amd64.img"
+os_base_url: "https://dl.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2"
+
+# Each node including master and worker has an unique name as the hostname
+nodes:
+  - name: k8s-master1
+    ip: 192.168.122.10
+    gateway4: "192.168.122.1"
+    ifname: "eth0"
+    type: master
+    disk_size: "10"
+    memory: "4096"
+    cpu: "2"
+    data_dev: "vdb"
+
+  - name: k8s-worker1
+    ip: 192.168.122.20
+    gateway4: "192.168.122.1"
+    ifname: "eth0"
+    type: worker
+    disk_size: "20"
+    memory: "4096"
+    cpu: "2"
+
+  - name: k8s-worker2
+    ip: 192.168.122.21
+    gateway4: "192.168.122.1"
+    ifname: "eth0"
+    type: worker
+    disk_size: "20"
+
+  - name: k8s-infra
+    ip: 192.168.122.15
+    gateway4: "192.168.122.1"
+    ifname: "eth0"
+    type: worker
+    disk_size: "20"
+    memory: "4096"
+    cpu: "2"
+    labels:
+      - name: type
+        value: infra
+
+k8s:
+  container_runtime: "cri-o"
+  cni: "Calico"
+  k8s_version: "1.32.3"

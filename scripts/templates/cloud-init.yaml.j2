@@ -1,0 +1,60 @@
+#cloud-config
+hostname: {{ node.name }}
+timezone: "{{ node.timezone | default('Asia/Shanghai') }}"
+fqdn: {{ node.name }}
+manage_etc_hosts: false
+package_update: true
+package_upgrade: true
+users:
+  - name: {{ ssh.username }}
+    ssh-authorized-keys:
+      - {{ ssh.public.key }}
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    groups: wheel
+    shell: /bin/bash
+chpasswd:
+  list: |
+    {{ ssh.username }}:{{ ssh.password }}
+  expire: False
+runcmd:
+  - systemctl enable cloud-init
+  - systemctl restart NetworkManager
+{% for node in nodes %}
+  - echo "{{ node.ip }}   {{ node.name }}" >> /etc/hosts
+{% endfor %}
+  - echo "Custom configuration complete!"
+
+# belows are network cloud init configuration
+network:
+  version: 2
+  ethernets:
+    {{ node.ifname | default("eth0") }}:
+      dhcp4: no
+      dhcp6: no
+      addresses:
+        - {{ node.ip }}/24
+      gateway4: {{ node.gateway4 | default("192.168.122.1") }}
+      nameservers:
+        addresses:
+          - {{ node.gateway4 | default("192.168.122.1") }}
+          - 8.8.8.8
+
+## TODO :: check below !!!
+# Format and mount the extra disk (/dev/vdb)
+disk_setup:
+  /dev/{{ node.data_dev | default('vdb') }}:
+    table_type: gpt
+    layout: true
+    overwrite: true
+
+fs_setup:
+  - device: /dev/{{ node.data_dev | default('vdb') }}
+    filesystem: ext4
+    overwrite: true
+
+mounts:
+  - [ /dev/{{ node.data_dev | default('vdb') }}, /mnt/data, auto, "defaults,noexec", 0, 0 ]
+
+runcmd:
+  - mkdir -p /mnt/data
+  - chown {{ ssh.username }}:{{ ssh.username }} /mnt/data

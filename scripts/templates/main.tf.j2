@@ -1,0 +1,142 @@
+terraform {
+  required_providers {
+    libvirt = {
+      source  = "dmacvicar/libvirt"
+      version = "{{ libvirt_provider_version | default('0.8.3') }}"
+    }
+  }
+}
+
+provider "libvirt" {
+  uri = "{{ libvirt_uri | default('qemu:///system') }}"
+}
+
+resource "libvirt_pool" "k8s_pool" {
+  name = "k8s_pool"
+  type = "dir"
+  path = "{{ image_dir }}"
+}
+
+resource "libvirt_volume" "os_base" {
+  name = "{{ os_base_name }}"
+  pool = "default"
+  source = "{{ os_base_url }}"
+  format = "qcow2"
+}
+
+# Define Master Nodes
+{% for node in nodes | selectattr("type", "equalto", "master") %}
+resource "libvirt_volume" {{ node.name }}_disk" {
+  name   = "{{ node.name }}.qcow2"
+  pool   = libvirt_pool.k8s_pool.name
+  size   = {{ node.disk_size }} * 1024 * 1024 * 1024
+  format = "qcow2"
+}
+
+resource "libvirt_domain" "{{ node.name }}" {
+  name   = "{{ node.name }}"
+  memory = {{ node.memory | default(4096) }}
+  vcpu   = {{ node.cpu | default(2) }}
+
+  disk {
+    volume_id = libvirt_volume.os_base.id
+    target_dev = "vda"
+    target_bus = "virtio"
+  }
+
+  disk {
+    volume_id = libvirt_volume.{{ node.name }}_disk.id
+    target_dev = "{{ node.data_dev | default('vdb') }}"
+    target_bus = "virtio"
+  }
+
+  # if it is against remote libvirt and you want the VM joining the host network
+  # use bridge = "br0" instead of network_name
+  network_interface {
+    network_name   = "default"
+    wait_for_lease = true
+  }
+
+  cloudinit = libvirt_cloudinit_disk.{{ node.name }}_cloudinit.id
+
+  # Serial console only
+  console {
+    type        = "pty"
+    target_port = "0"
+    target_type = "serial"
+  }
+
+  graphics {
+    type        = "none"
+    listen_type = "none"
+  }
+}
+
+resource "libvirt_cloudinit_disk" "{{ node.name }}_cloudinit" {
+  name      = "{{ node.name }}-cloudinit.iso"
+  pool      = libvirt_pool.k8s_pool.name
+  user_data = file("${path.module}/cloud-init-{{ node.name }}.yaml")
+}
+{% endfor %}
+
+
+# Define Worker Nodes
+resource "libvirt_volume" "worker_disk_1" {
+  name   = "worker1.qcow2"
+  pool   = libvirt_pool.k8s_pool.name
+  size   = 20 * 1024 * 1024 * 1024  # 20GB
+  format = "qcow2"
+}
+
+resource "libvirt_domain" "worker1" {
+  name   = "k8s-worker1"
+  memory = 4096
+  vcpu   = 2
+
+  disk {
+    volume_id = libvirt_volume.worker_disk_1.id
+  }
+
+  network_interface {
+    network_name   = "default"
+    wait_for_lease = true
+  }
+
+  cloudinit = libvirt_cloudinit_disk.worker1_cloudinit.id
+}
+
+resource "libvirt_cloudinit_disk" "worker1_cloudinit" {
+  name      = "worker1-cloudinit.iso"
+  pool      = libvirt_pool.k8s_pool.name
+  user_data = file("${path.module}/cloud-init-worker.yaml")
+}
+
+resource "libvirt_volume" "worker_disk_2" {
+  name   = "worker2.qcow2"
+  pool   = libvirt_pool.k8s_pool.name
+  size   = 20 * 1024 * 1024 * 1024  # 20GB
+  format = "qcow2"
+}
+
+resource "libvirt_domain" "worker2" {
+  name   = "k8s-worker2"
+  memory = 4096
+  vcpu   = 2
+
+  disk {
+    volume_id = libvirt_volume.worker_disk_2.id
+  }
+
+  network_interface {
+    network_name   = "default"
+    wait_for_lease = true
+  }
+
+  cloudinit = libvirt_cloudinit_disk.worker2_cloudinit.id
+}
+
+resource "libvirt_cloudinit_disk" "worker2_cloudinit" {
+  name      = "worker2-cloudinit.iso"
+  pool      = libvirt_pool.k8s_pool.name
+  user_data = file("${path.module}/cloud-init-worker.yaml")
+}
