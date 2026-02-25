@@ -1,2 +1,1 @@
-scripts/run/*.yaml
-scripts/run/*.tf
+scripts/run/**

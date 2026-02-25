@@ -293,7 +293,7 @@ resource "libvirt_domain" "vm" {
     consoles = [
       {
         source = {
-          pty = {}
+          pty = { path = "/dev/pts/0" }
         }
         target = {
           type = "serial"
