@@ -76,7 +76,8 @@ resource "libvirt_network" "k8s" {
       {
         ip        = "{{ node.ip }}"
         hostnames = [
-          { hostname = "{{ node.name }}" }
+          { hostname = "{{ node.name }}" },
+          { hostname = "{{ node.name }}.{{ network.domain }}" }
         ]
       },
 {% endfor %}

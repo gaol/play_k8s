@@ -426,6 +426,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Action to perform (default: generate)",
     )
     parser.add_argument(
+        "--libvirt-uri",
+        metavar="URI",
+        help="Override libvirt_uri from config (e.g. qemu:///session for macOS)",
+    )
+    parser.add_argument(
         "--auto-approve",
         action="store_true",
         help="Pass -auto-approve to terraform apply/destroy",
@@ -462,6 +467,9 @@ def main():
 
     config = load_config(Path(args.config))
     config["ssh"]["public_key"] = read_public_key(config["ssh"]["public_key_file"])
+
+    if args.libvirt_uri:
+        config["libvirt_uri"] = args.libvirt_uri
 
     if args.download_provider:
         prepare_libvirt_provider(config.get("libvirt_provider_version", "0.9.3"))
