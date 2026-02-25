@@ -157,11 +157,11 @@ def resolve_base_image_source(config: dict) -> str:
     - http/https + remote libvirt → return URL; libvirt daemon fetches it.
     """
     url = config["os_base_url"]
-    download_dir = os.path.expanduser(config.get("download_dir", "/home/lgao/vms"))
+    download_dir = os.path.expanduser(config.get("download_dir", "~/vms"))
     image_name = config["os_base_name"]
 
     if url.startswith("file://"):
-        local_path = url[len("file://"):]
+        local_path = os.path.expanduser(url[len("file://"):])
         if not os.path.exists(local_path):
             print(
                 f"WARNING: base image not found on libvirt host: {local_path}",

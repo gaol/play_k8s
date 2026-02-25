@@ -17,18 +17,18 @@ libvirt_arch: "x86_64"
 
 # Directory on the libvirt host where all images and volumes are stored.
 # The libvirtd user must have write access.
-image_dir: "/home/lgao/images/k8s"
+image_dir: "~/images/k8s"
 
 # Directory where base OS images are downloaded (for http/https URLs).
 # Kept separate from image_dir to avoid conflicts with the libvirt storage pool.
-download_dir: "/home/lgao/vms"
+download_dir: "~/vms"
 
 # SSH access for the provisioned VMs
 ssh:
   username: "lgao"
   password: "change-it"
   # The file content is read at runtime and injected into cloud-init
-  public_key_file: "/home/lgao/.ssh/id_rsa.pub"
+  public_key_file: "~/.ssh/id_rsa.pub"
 
 # Base OS image name (used as the libvirt volume name for the base image)
 os_base_name: "fedora-43"
@@ -37,7 +37,7 @@ os_base_name: "fedora-43"
 #   file:// → local path on the libvirt host (no download needed)
 #   https:// → downloaded to image_dir if libvirt is local; passed to libvirt if remote
 #os_base_url: "https://dl.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2"
-os_base_url: "file:///home/lgao/vms/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2"
+os_base_url: "file://~/vms/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2"
 
 # Packages installed during cloud-init first boot
 install_packages:
