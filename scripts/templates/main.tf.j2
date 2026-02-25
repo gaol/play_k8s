@@ -103,11 +103,6 @@ resource "libvirt_volume" "base_image" {
       url = "{{ base_image_source }}"
     }
   }
-
-  lifecycle {
-    # Prevent accidental deletion of the shared base image
-    prevent_destroy = true
-  }
 }
 
 # ---------------------------------------------------------------------------
