@@ -285,6 +285,23 @@ resource "libvirt_domain" "vm" {
         }
       }
     ]
+
+    consoles = [
+      {
+        source = {
+          pty = { path = "/dev/pts/0" }
+        }
+        target = {
+          type = "serial"
+          port = 0
+        }
+      }
+    ]
+  }
+
+  # PTY path is assigned dynamically by libvirt; ignore drift after creation
+  lifecycle {
+    ignore_changes = [devices]
   }
 }
 
