@@ -374,12 +374,22 @@ def _ensure_initialized():
 
 
 def clean_run_dir():
-    """Remove all generated files in run/."""
+    """Remove generated files in run/, preserving Terraform state."""
     if not RUN_DIR.exists():
         print(f"Nothing to clean — {RUN_DIR} does not exist.")
         return
-    shutil.rmtree(RUN_DIR)
-    print(f"Removed {RUN_DIR}")
+
+    preserved = {"terraform.tfstate", "terraform.tfstate.backup"}
+    for entry in list(RUN_DIR.iterdir()):
+        if entry.name in preserved:
+            continue
+        if entry.is_dir():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+        print(f"  Removed {entry.name}")
+
+    print(f"Cleaned {RUN_DIR} (terraform state preserved)")
 
 
 # ---------------------------------------------------------------------------
