@@ -63,11 +63,11 @@ run_once_commands:
 network:
   name: "k8s-net"
   domain: "k8s.local"
-  subnet: "192.168.122.0/24"
-  gateway: "192.168.122.1"
+  subnet: "192.168.150.0/24"
+  gateway: "192.168.150.1"
   dhcp_range:
-    start: "192.168.122.100"
-    end:   "192.168.122.199"
+    start: "192.168.150.100"
+    end:   "192.168.150.199"
 
 # Cluster node definitions.
 # Each node must have: name, ip.
@@ -76,7 +76,7 @@ network:
 nodes:
   defaults:
     ifname: "eth0"
-    gateway4: "192.168.122.1"
+    gateway4: "192.168.150.1"
     memory: "8192"
     vcpu: "4"
     disk_size: "20"
@@ -84,30 +84,30 @@ nodes:
 
   masters:
     - name: k8s-master1
-      ip: 192.168.122.10
+      ip: 192.168.150.10
       data_disk_size: "20"
 
     - name: k8s-master2
-      ip: 192.168.122.11
+      ip: 192.168.150.11
       data_disk_size: "20"
 
     - name: k8s-master3
-      ip: 192.168.122.12
+      ip: 192.168.150.12
       data_disk_size: "20"
 
   workers:
     - name: k8s-worker1
-      ip: 192.168.122.20
+      ip: 192.168.150.20
       disk_size: "40"
       data_disk_size: "40"
 
     - name: k8s-worker2
-      ip: 192.168.122.21
+      ip: 192.168.150.21
       disk_size: "40"
       data_disk_size: "40"
 
     - name: k8s-worker3
-      ip: 192.168.122.22
+      ip: 192.168.150.22
       disk_size: "40"
       data_disk_size: "40"
 

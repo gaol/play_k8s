@@ -28,6 +28,7 @@ Examples
 """
 
 import argparse
+import ipaddress
 import os
 import platform
 import shutil
@@ -287,6 +288,52 @@ def generate_host_dns_conf(config: dict):
     print(f"Generated {path}")
 
 
+def generate_network_xml(config: dict, nodes: list):
+    """Write a libvirt network XML definition to run/.
+
+    The generated file can be used with ``virsh net-define`` to create
+    the cluster network independently of Terraform.
+    """
+    RUN_DIR.mkdir(parents=True, exist_ok=True)
+
+    net = config["network"]
+    net_name = net["name"]
+    domain = net["domain"]
+    gateway = net["gateway"]
+    subnet = ipaddress.ip_network(net["subnet"], strict=False)
+    netmask = str(subnet.netmask)
+
+    host_entries = []
+    for node in nodes:
+        host_entries.append(
+            f'    <host ip="{node["ip"]}">\n'
+            f'      <hostname>{node["name"]}</hostname>\n'
+            f'      <hostname>{node["name"]}.{domain}</hostname>\n'
+            f'    </host>'
+        )
+
+    xml = f"""\
+<network>
+  <name>{net_name}</name>
+  <forward mode='nat'/>
+  <domain name='{domain}' localOnly='yes'/>
+  <bridge stp='on' delay='0'/>
+  <dns>
+{chr(10).join(host_entries)}
+  </dns>
+  <ip address='{gateway}' netmask='{netmask}'>
+    <dhcp>
+      <range start='{net["dhcp_range"]["start"]}' end='{net["dhcp_range"]["end"]}'/>
+    </dhcp>
+  </ip>
+</network>
+"""
+
+    path = RUN_DIR / f"{net_name}.xml"
+    path.write_text(xml)
+    print(f"Generated {path}")
+
+
 def generate_terraform_files(
     config: dict, env: Environment, nodes: list, base_image_source: str
 ):
@@ -503,6 +550,7 @@ def main():
     env = _make_jinja_env()
     generate_cloud_init_files(config, env, nodes)
     generate_terraform_files(config, env, nodes, base_image_source)
+    generate_network_xml(config, nodes)
     generate_host_dns_conf(config)
 
     if args.action == "generate":
