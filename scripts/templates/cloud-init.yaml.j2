@@ -1,60 +1,113 @@
 #cloud-config
 hostname: {{ node.name }}
-timezone: "{{ node.timezone | default('Asia/Shanghai') }}"
-fqdn: {{ node.name }}
+fqdn: {{ node.name }}.{{ domain }}
 manage_etc_hosts: false
-package_update: true
-package_upgrade: true
+timezone: "{{ node.timezone | default('UTC') }}"
+
+# Grow the root partition to fill the cloned volume on first boot
+growpart:
+  mode: auto
+  devices:
+    - /
+  ignore_growroot_disabled: false
+resize_rootfs: true
+
+package_update: false
+{% if install_packages %}
+packages:
+{% for pkg in install_packages %}
+  - {{ pkg }}
+{% endfor %}
+{% endif %}
+
 users:
   - name: {{ ssh.username }}
-    ssh-authorized-keys:
-      - {{ ssh.public.key }}
-    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    ssh_authorized_keys:
+      - {{ ssh.public_key }}
+    sudo: ALL=(ALL) NOPASSWD:ALL
     groups: wheel
     shell: /bin/bash
+    lock_passwd: false
+
 chpasswd:
-  list: |
-    {{ ssh.username }}:{{ ssh.password }}
-  expire: False
-runcmd:
-  - systemctl enable cloud-init
-  - systemctl restart NetworkManager
-{% for node in nodes %}
-  - echo "{{ node.ip }}   {{ node.name }}" >> /etc/hosts
+  expire: false
+  users:
+    - name: {{ ssh.username }}
+      password: "{{ ssh.password }}"
+      type: text
+
+write_files:
+  - path: /etc/modules-load.d/k8s-prereqs.conf
+    content: |
+      overlay
+      br_netfilter
+
+  - path: /etc/sysctl.d/99-k8s.conf
+    content: |
+      net.ipv4.ip_forward = 1
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+
+  # Static /etc/hosts with all cluster nodes (pre-DNS fallback)
+  - path: /etc/hosts
+    content: |
+      127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+      ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+      {{ node.ip }}   {{ node.name }} {{ node.name }}.{{ domain }}
+{% for n in all_nodes %}
+{% if n.name != node.name %}
+      {{ n.ip }}   {{ n.name }} {{ n.name }}.{{ domain }}
+{% endif %}
 {% endfor %}
-  - echo "Custom configuration complete!"
 
-# belows are network cloud init configuration
-network:
-  version: 2
-  ethernets:
-    {{ node.ifname | default("eth0") }}:
-      dhcp4: no
-      dhcp6: no
-      addresses:
-        - {{ node.ip }}/24
-      gateway4: {{ node.gateway4 | default("192.168.122.1") }}
-      nameservers:
-        addresses:
-          - {{ node.gateway4 | default("192.168.122.1") }}
-          - 8.8.8.8
-
-## TODO :: check below !!!
-# Format and mount the extra disk (/dev/vdb)
+{% set has_data_disk = (node.data_disk_size | default('0')) | int > 0 %}
+{% if has_data_disk %}
 disk_setup:
-  /dev/{{ node.data_dev | default('vdb') }}:
+  /dev/vdb:
     table_type: gpt
     layout: true
     overwrite: true
 
 fs_setup:
-  - device: /dev/{{ node.data_dev | default('vdb') }}
+  - device: /dev/vdb1
     filesystem: ext4
     overwrite: true
 
 mounts:
-  - [ /dev/{{ node.data_dev | default('vdb') }}, /mnt/data, auto, "defaults,noexec", 0, 0 ]
+  - [/dev/vdb1, /mnt/data, ext4, "defaults,nofail", 0, 2]
+{% endif %}
 
 runcmd:
+  - modprobe overlay
+  - modprobe br_netfilter
+  - sysctl --system
+  - swapoff -a
+  - sed -i.bak '/[[:space:]]swap[[:space:]]/s/^/#/' /etc/fstab
+{% if has_data_disk %}
   - mkdir -p /mnt/data
   - chown {{ ssh.username }}:{{ ssh.username }} /mnt/data
+{% endif %}
+{% for cmd in run_once_commands | default([]) %}
+  - {{ cmd }}
+{% endfor %}
+
+---
+# Network configuration (cloud-init network v2 / netplan format)
+# This document is split from the one above by the provisioner and written
+# as a separate network-config file in the cloud-init ISO.
+version: 2
+ethernets:
+  {{ node.ifname | default("eth0") }}:
+    dhcp4: false
+    dhcp6: false
+    addresses:
+      - {{ node.ip }}/{{ subnet_prefix }}
+    routes:
+      - to: default
+        via: {{ node.gateway4 | default(gateway) }}
+    nameservers:
+      # libvirt bridge: dnsmasq resolves {{ domain }} and forwards external queries
+      addresses:
+        - {{ node.gateway4 | default(gateway) }}
+      search:
+        - {{ domain }}

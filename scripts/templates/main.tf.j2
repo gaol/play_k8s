@@ -1,142 +1,323 @@
 terraform {
+  required_version = ">= 1.14"
+
   required_providers {
     libvirt = {
       source  = "dmacvicar/libvirt"
-      version = "{{ libvirt_provider_version | default('0.8.3') }}"
+      version = "~> {{ libvirt_provider_version }}"
     }
   }
 }
 
 provider "libvirt" {
-  uri = "{{ libvirt_uri | default('qemu:///system') }}"
+  uri = "{{ libvirt_uri }}"
 }
 
-resource "libvirt_pool" "k8s_pool" {
-  name = "k8s_pool"
+# ---------------------------------------------------------------------------
+# Storage pool: all volumes live here on the libvirt host
+# ---------------------------------------------------------------------------
+resource "libvirt_pool" "k8s" {
+  name = "k8s-pool"
   type = "dir"
-  path = "{{ image_dir }}"
-}
 
-resource "libvirt_volume" "os_base" {
-  name = "{{ os_base_name }}"
-  pool = "default"
-  source = "{{ os_base_url }}"
-  format = "qcow2"
-}
-
-# Define Master Nodes
-{% for node in nodes | selectattr("type", "equalto", "master") %}
-resource "libvirt_volume" {{ node.name }}_disk" {
-  name   = "{{ node.name }}.qcow2"
-  pool   = libvirt_pool.k8s_pool.name
-  size   = {{ node.disk_size }} * 1024 * 1024 * 1024
-  format = "qcow2"
-}
-
-resource "libvirt_domain" "{{ node.name }}" {
-  name   = "{{ node.name }}"
-  memory = {{ node.memory | default(4096) }}
-  vcpu   = {{ node.cpu | default(2) }}
-
-  disk {
-    volume_id = libvirt_volume.os_base.id
-    target_dev = "vda"
-    target_bus = "virtio"
-  }
-
-  disk {
-    volume_id = libvirt_volume.{{ node.name }}_disk.id
-    target_dev = "{{ node.data_dev | default('vdb') }}"
-    target_bus = "virtio"
-  }
-
-  # if it is against remote libvirt and you want the VM joining the host network
-  # use bridge = "br0" instead of network_name
-  network_interface {
-    network_name   = "default"
-    wait_for_lease = true
-  }
-
-  cloudinit = libvirt_cloudinit_disk.{{ node.name }}_cloudinit.id
-
-  # Serial console only
-  console {
-    type        = "pty"
-    target_port = "0"
-    target_type = "serial"
-  }
-
-  graphics {
-    type        = "none"
-    listen_type = "none"
+  target = {
+    path = "{{ image_dir }}"
   }
 }
 
-resource "libvirt_cloudinit_disk" "{{ node.name }}_cloudinit" {
-  name      = "{{ node.name }}-cloudinit.iso"
-  pool      = libvirt_pool.k8s_pool.name
-  user_data = file("${path.module}/cloud-init-{{ node.name }}.yaml")
-}
+# ---------------------------------------------------------------------------
+# Libvirt NAT network with built-in dnsmasq.
+#
+# The bridge IP ({{ network.gateway }}) acts as both the default gateway
+# and the DNS resolver for VMs.  dnsmasq resolves {{ network.domain }}
+# names from the static host entries below, and forwards all other queries
+# to the host's upstream DNS.
+#
+# Host-side DNS for {{ network.domain }}:
+#   libvirt automatically writes /etc/NetworkManager/dnsmasq.d/<network>.conf
+#   when the network domain is set, so VMs are reachable by hostname from
+#   the host without any extra configuration.
+# ---------------------------------------------------------------------------
+resource "libvirt_network" "k8s" {
+  name      = "{{ network.name }}"
+  autostart = true
+
+  forward = {
+    mode = "nat"
+  }
+
+  domain = {
+    name       = "{{ network.domain }}"
+    local_only = "yes"
+  }
+
+  ips = [
+    {
+      address = "{{ network.gateway }}"
+      prefix  = {{ network.subnet.split('/')[1] }}
+
+      dhcp = {
+        ranges = [
+          {
+            start = "{{ network.dhcp_range.start }}"
+            end   = "{{ network.dhcp_range.end }}"
+          }
+        ]
+      }
+    }
+  ]
+
+  dns = {
+    enable = "yes"
+
+    # Static hostname → IP mappings served by dnsmasq
+    host = [
+{% for node in nodes %}
+      {
+        ip        = "{{ node.ip }}"
+        hostnames = [
+          { hostname = "{{ node.name }}" }
+        ]
+      },
 {% endfor %}
-
-
-# Define Worker Nodes
-resource "libvirt_volume" "worker_disk_1" {
-  name   = "worker1.qcow2"
-  pool   = libvirt_pool.k8s_pool.name
-  size   = 20 * 1024 * 1024 * 1024  # 20GB
-  format = "qcow2"
+    ]
+  }
 }
 
-resource "libvirt_domain" "worker1" {
-  name   = "k8s-worker1"
-  memory = 4096
-  vcpu   = 2
+# ---------------------------------------------------------------------------
+# Base OS image volume (shared, read-only parent for per-node thin clones)
+# ---------------------------------------------------------------------------
+resource "libvirt_volume" "base_image" {
+  name = "{{ os_base_name }}.qcow2"
+  pool = libvirt_pool.k8s.name
 
-  disk {
-    volume_id = libvirt_volume.worker_disk_1.id
+  target = {
+    format = {
+      type = "qcow2"
+    }
   }
 
-  network_interface {
-    network_name   = "default"
-    wait_for_lease = true
+  create = {
+    content = {
+      url = "{{ base_image_source }}"
+    }
   }
 
-  cloudinit = libvirt_cloudinit_disk.worker1_cloudinit.id
+  lifecycle {
+    # Prevent accidental deletion of the shared base image
+    prevent_destroy = true
+  }
 }
 
-resource "libvirt_cloudinit_disk" "worker1_cloudinit" {
-  name      = "worker1-cloudinit.iso"
-  pool      = libvirt_pool.k8s_pool.name
-  user_data = file("${path.module}/cloud-init-worker.yaml")
-}
-
-resource "libvirt_volume" "worker_disk_2" {
-  name   = "worker2.qcow2"
-  pool   = libvirt_pool.k8s_pool.name
-  size   = 20 * 1024 * 1024 * 1024  # 20GB
-  format = "qcow2"
-}
-
-resource "libvirt_domain" "worker2" {
-  name   = "k8s-worker2"
-  memory = 4096
-  vcpu   = 2
-
-  disk {
-    volume_id = libvirt_volume.worker_disk_2.id
+# ---------------------------------------------------------------------------
+# Per-node configuration map (built from config.yaml via Jinja2)
+# ---------------------------------------------------------------------------
+locals {
+  all_nodes = {
+{% for node in nodes %}
+    "{{ node.name }}" = {
+      ip             = "{{ node.ip }}"
+      memory         = {{ node.memory | default(8192) }}
+      vcpu           = {{ node.vcpu | default(4) }}
+      # disk sizes in bytes (config values are in GB)
+      disk_size      = {{ (node.disk_size | default('20')) | int * 1073741824 }}
+      data_disk_size = {{ (node.data_disk_size | default('0')) | int * 1073741824 }}
+    }
+{% endfor %}
   }
 
-  network_interface {
-    network_name   = "default"
-    wait_for_lease = true
+  # Subset map: nodes that have a non-zero data disk
+  nodes_with_data_disk = {
+    for k, v in local.all_nodes : k => v if v.data_disk_size > 0
   }
-
-  cloudinit = libvirt_cloudinit_disk.worker2_cloudinit.id
 }
 
-resource "libvirt_cloudinit_disk" "worker2_cloudinit" {
-  name      = "worker2-cloudinit.iso"
-  pool      = libvirt_pool.k8s_pool.name
-  user_data = file("${path.module}/cloud-init-worker.yaml")
+# ---------------------------------------------------------------------------
+# OS disks — thin clone of base image, grown to the configured size
+# ---------------------------------------------------------------------------
+resource "libvirt_volume" "os_disk" {
+  for_each = local.all_nodes
+
+  name     = "${each.key}-os.qcow2"
+  pool     = libvirt_pool.k8s.name
+  capacity = each.value.disk_size
+
+  target = {
+    format = {
+      type = "qcow2"
+    }
+  }
+
+  backing_store = {
+    path   = libvirt_volume.base_image.path
+    format = {
+      type = "qcow2"
+    }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Data disks (optional, only for nodes with data_disk_size > 0)
+# ---------------------------------------------------------------------------
+resource "libvirt_volume" "data_disk" {
+  for_each = local.nodes_with_data_disk
+
+  name     = "${each.key}-data.qcow2"
+  pool     = libvirt_pool.k8s.name
+  capacity = each.value.data_disk_size
+
+  target = {
+    format = {
+      type = "qcow2"
+    }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Cloud-init configuration disks (one per node, generated by provisioner.py)
+# Files live in the same directory as this main.tf (run/)
+# ---------------------------------------------------------------------------
+resource "libvirt_cloudinit_disk" "ci" {
+  for_each = local.all_nodes
+
+  name           = "${each.key}-cloudinit"
+  user_data      = file("${path.module}/cloud-init-user-data-${each.key}.yaml")
+  meta_data      = "instance-id: ${each.key}\nlocal-hostname: ${each.key}\n"
+  network_config = file("${path.module}/cloud-init-network-config-${each.key}.yaml")
+}
+
+# Upload the cloud-init ISO into the storage pool for each node
+resource "libvirt_volume" "ci_iso" {
+  for_each = local.all_nodes
+
+  name = "${each.key}-cloudinit.iso"
+  pool = libvirt_pool.k8s.name
+
+  create = {
+    content = {
+      url = libvirt_cloudinit_disk.ci[each.key].path
+    }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Virtual machines
+# ---------------------------------------------------------------------------
+resource "libvirt_domain" "vm" {
+  for_each    = local.all_nodes
+  name        = each.key
+  type        = "kvm"
+  memory      = each.value.memory
+  memory_unit = "MiB"
+  vcpu        = each.value.vcpu
+  autostart   = true
+  running     = true
+
+  os = {
+    type         = "hvm"
+    type_arch    = "{{ libvirt_arch }}"
+    type_machine = "q35"
+  }
+
+  # Pass through host CPU features so k8s components can use advanced instructions
+  cpu = {
+    mode = "host-passthrough"
+  }
+
+  devices = {
+    disks = concat(
+      [
+        # Root OS disk
+        {
+          source = {
+            volume = {
+              pool   = libvirt_volume.os_disk[each.key].pool
+              volume = libvirt_volume.os_disk[each.key].name
+            }
+          }
+          target = {
+            dev = "vda"
+            bus = "virtio"
+          }
+          driver = {
+            type = "qcow2"
+          }
+        },
+        # Cloud-init CDROM
+        {
+          device = "cdrom"
+          source = {
+            volume = {
+              pool   = libvirt_volume.ci_iso[each.key].pool
+              volume = libvirt_volume.ci_iso[each.key].name
+            }
+          }
+          target = {
+            dev = "sda"
+            bus = "sata"
+          }
+        }
+      ],
+      # Data disk — only attached when the node has data_disk_size > 0
+      each.value.data_disk_size > 0 ? [
+        {
+          source = {
+            volume = {
+              pool   = libvirt_volume.data_disk[each.key].pool
+              volume = libvirt_volume.data_disk[each.key].name
+            }
+          }
+          target = {
+            dev = "vdb"
+            bus = "virtio"
+          }
+          driver = {
+            type = "qcow2"
+          }
+        }
+      ] : []
+    )
+
+    interfaces = [
+      {
+        type  = "network"
+        model = { type = "virtio" }
+        source = {
+          network = {
+            network = libvirt_network.k8s.name
+          }
+        }
+      }
+    ]
+
+    consoles = [
+      {
+        source = {
+          pty = {}
+        }
+        target = {
+          type = "serial"
+          port = 0
+        }
+      }
+    ]
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+output "node_ips" {
+  description = "Static IP addresses assigned to each VM"
+  value       = { for k, v in local.all_nodes : k => v.ip }
+}
+
+output "network_name" {
+  description = "Libvirt network used by the cluster"
+  value       = libvirt_network.k8s.name
+}
+
+output "network_domain" {
+  description = "DNS domain served by the cluster network"
+  value       = libvirt_network.k8s.domain.name
 }
