@@ -301,7 +301,7 @@ resource "libvirt_domain" "vm" {
 
   # The PTY path is assigned dynamically by libvirt at runtime
   lifecycle {
-    ignore_changes = [devices[0].consoles]
+    ignore_changes = [devices]
   }
 }
 
