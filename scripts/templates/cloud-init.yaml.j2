@@ -83,6 +83,7 @@ runcmd:
   - sysctl --system
   - swapoff -a
   - sed -i.bak '/[[:space:]]swap[[:space:]]/s/^/#/' /etc/fstab
+  - grubby --update-kernel=ALL --args="console=ttyS0,115200"
 {% if has_data_disk %}
   - mkdir -p /mnt/data
   - chown {{ ssh.username }}:{{ ssh.username }} /mnt/data
