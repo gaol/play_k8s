@@ -63,6 +63,18 @@ resource "libvirt_network" "k8s" {
             end   = "{{ network.dhcp_range.end }}"
           }
         ]
+
+        # Pin each VM's MAC → IP so dnsmasq always assigns the correct
+        # address, even before cloud-init applies the static config.
+        hosts = [
+{% for node in nodes %}
+          {
+            mac  = "{{ node.mac }}"
+            name = "{{ node.name }}"
+            ip   = "{{ node.ip }}"
+          },
+{% endfor %}
+        ]
       }
     }
   ]
@@ -113,6 +125,7 @@ locals {
 {% for node in nodes %}
     "{{ node.name }}" = {
       ip             = "{{ node.ip }}"
+      mac            = "{{ node.mac }}"
       memory         = {{ node.memory | default(8192) }}
       vcpu           = {{ node.vcpu | default(4) }}
       # disk sizes in bytes (config values are in GB)
@@ -278,6 +291,7 @@ resource "libvirt_domain" "vm" {
       {
         type  = "network"
         model = { type = "virtio" }
+        mac   = { address = each.value.mac }
         source = {
           network = {
             network = libvirt_network.k8s.name

@@ -66,18 +66,39 @@ def read_public_key(key_file: str) -> str:
         return fh.read().strip()
 
 
+def generate_mac(ip: str) -> str:
+    """Generate a deterministic MAC address from an IP address.
+
+    Uses the KVM/QEMU locally-administered prefix ``52:54:00`` and
+    derives the last three octets from the IP address.  For example,
+    ``192.168.150.10`` becomes ``52:54:00:a8:96:0a``.
+
+    This guarantees uniqueness as long as node IPs are unique (which
+    they must be) and produces human-readable MACs that map back to IPs.
+    """
+    octets = ip.split(".")
+    return f"52:54:00:{int(octets[1]):02x}:{int(octets[2]):02x}:{int(octets[3]):02x}"
+
+
 def get_all_nodes(config: dict) -> list:
     """Return a flat list of all master and worker node dicts.
 
     Each node inherits values from ``nodes.defaults``; per-node values
-    take precedence over defaults.
+    take precedence over defaults.  A deterministic MAC address is
+    generated for any node that does not already specify one.
     """
     defaults = config["nodes"].get("defaults", {})
     nodes = []
     for node in config["nodes"].get("masters", []):
-        nodes.append({**defaults, **node})
+        merged = {**defaults, **node}
+        if "mac" not in merged:
+            merged["mac"] = generate_mac(merged["ip"])
+        nodes.append(merged)
     for node in config["nodes"].get("workers", []):
-        nodes.append({**defaults, **node})
+        merged = {**defaults, **node}
+        if "mac" not in merged:
+            merged["mac"] = generate_mac(merged["ip"])
+        nodes.append(merged)
     return nodes
 
 
@@ -312,6 +333,13 @@ def generate_network_xml(config: dict, nodes: list):
             f'    </host>'
         )
 
+    dhcp_hosts = []
+    for node in nodes:
+        dhcp_hosts.append(
+            f'      <host mac=\'{node["mac"]}\' name=\'{node["name"]}\''
+            f' ip=\'{node["ip"]}\'/>'
+        )
+
     xml = f"""\
 <network>
   <name>{net_name}</name>
@@ -324,6 +352,7 @@ def generate_network_xml(config: dict, nodes: list):
   <ip address='{gateway}' netmask='{netmask}'>
     <dhcp>
       <range start='{net["dhcp_range"]["start"]}' end='{net["dhcp_range"]["end"]}'/>
+{chr(10).join(dhcp_hosts)}
     </dhcp>
   </ip>
 </network>
@@ -507,6 +536,7 @@ echo ""
     defaults = config["nodes"].get("defaults", {})
 
     names = []
+    macs = []
     memories = []
     vcpus = []
     disk_sizes = []
@@ -514,6 +544,7 @@ echo ""
 
     for node in nodes:
         names.append(node['name'])
+        macs.append(node['mac'])
         memories.append(str(node.get("memory", defaults.get("memory", "8192"))))
         vcpus.append(str(node.get("vcpu", defaults.get("vcpu", "4"))))
         disk_sizes.append(str(node.get("disk_size", defaults.get("disk_size", "40"))))
@@ -521,6 +552,7 @@ echo ""
 
     script += f"""# Define node configuration arrays
 NAMES=({" ".join(names)})
+MACS=({" ".join(macs)})
 MEMORY=({" ".join(memories)})
 VCPU=({" ".join(vcpus)})
 DISK_SIZE=({" ".join(disk_sizes)})
@@ -529,6 +561,7 @@ DATA_DISK_SIZE=({" ".join(data_disk_sizes)})
 # Create VMs in a loop
 for i in "${{!NAMES[@]}}"; do
     NODE_NAME="${{NAMES[$i]}}"
+    NODE_MAC="${{MACS[$i]}}"
     NODE_MEMORY="${{MEMORY[$i]}}"
     NODE_VCPU="${{VCPU[$i]}}"
     NODE_DISK_SIZE="${{DISK_SIZE[$i]}}"
@@ -579,7 +612,7 @@ for i in "${{!NAMES[@]}}"; do
         --cpu host-passthrough \\
         --machine q35 \\
         $DISK_PARAMS \\
-        --network network=$NETWORK,model=virtio \\
+        --network network=$NETWORK,model=virtio,mac=$NODE_MAC \\
         --os-variant fedora-unknown \\
         --graphics none \\
         --console pty,target_type=serial \\
