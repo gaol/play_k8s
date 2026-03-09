@@ -60,7 +60,7 @@
 
 - name: Download CNI plugins
   ansible.builtin.get_url:
-    url: "https://github.com/containernetworking/plugins/releases/download/v1.6.2/cni-plugins-linux-{{ cni_arch }}-v1.6.2.tgz"
+    url: "https://github.com/containernetworking/plugins/releases/download/v{{ cni_plugins_version }}/cni-plugins-linux-{{ cni_arch }}-v{{ cni_plugins_version }}.tgz"
     dest: /tmp/cni-plugins.tgz
 
 - name: Extract CNI plugins
