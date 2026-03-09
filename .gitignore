@@ -1,1 +1,3 @@
 scripts/run/**
+scripts/ansible/inventory.ini
+scripts/ansible/group_vars/all.yml
