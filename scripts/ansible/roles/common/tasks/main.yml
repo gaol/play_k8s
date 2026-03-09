@@ -1,8 +1,25 @@
 ---
-- name: Remove zram swap
+- name: Remove zram swap generator package
   ansible.builtin.dnf:
     name: zram-generator-defaults
     state: absent
+
+- name: Disable all active swap
+  ansible.builtin.command:
+    cmd: swapoff -a
+  changed_when: true
+
+- name: Mask zram systemd service to prevent swap on reboot
+  ansible.builtin.systemd:
+    name: "systemd-zram-setup@zram0.service"
+    masked: true
+  failed_when: false
+
+- name: Comment out swap entries in fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s)'
+    replace: '# \1'
 
 - name: Add CRI-O repository
   ansible.builtin.yum_repository:
