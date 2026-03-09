@@ -816,6 +816,7 @@ def generate_ansible_files(config: dict, nodes: list):
     lines.append("[all:vars]")
     lines.append(f"ansible_user={ssh['username']}")
     lines.append("ansible_become=yes")
+    lines.append("ansible_python_interpreter=/usr/bin/python3")
     lines.append("")
 
     inv_path = ansible_dir / "inventory.ini"
