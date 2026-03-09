@@ -1,0 +1,34 @@
+---
+- name: Apply Tigera operator manifest
+  ansible.builtin.command:
+    cmd: kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.3/manifests/tigera-operator.yaml
+  become: false
+  register: tigera_result
+  changed_when: "'created' in tigera_result.stdout"
+  failed_when: "tigera_result.rc != 0 and 'already exists' not in tigera_result.stderr"
+
+- name: Wait for Tigera operator to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=Available deployment/tigera-operator -n tigera-operator --timeout=120s
+  become: false
+
+- name: Deploy Calico custom resources
+  ansible.builtin.template:
+    src: calico-custom-resources.yaml.j2
+    dest: /tmp/calico-custom-resources.yaml
+
+- name: Apply Calico custom resources
+  ansible.builtin.command:
+    cmd: kubectl apply -f /tmp/calico-custom-resources.yaml
+  become: false
+  register: calico_result
+  changed_when: "'created' in calico_result.stdout or 'configured' in calico_result.stdout"
+
+- name: Wait for Calico to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=Available tigerastatus/calico --timeout=300s
+  become: false
+  retries: 5
+  delay: 30
+  register: calico_ready
+  until: calico_ready.rc == 0
