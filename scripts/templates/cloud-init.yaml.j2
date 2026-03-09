@@ -29,10 +29,14 @@ users:
     shell: /bin/bash
     lock_passwd: false
 
+ssh_pwauth: true
+
 chpasswd:
-  list: |
-    {{ ssh.username }}:{{ ssh.password }}
-  expire: False
+  expire: false
+  users:
+    - name: {{ ssh.username }}
+      password: {{ ssh.password }}
+      type: text
 
 write_files:
   - path: /etc/modules-load.d/k8s-prereqs.conf

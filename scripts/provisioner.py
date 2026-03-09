@@ -527,8 +527,15 @@ if [[ ! -f "$BASE_IMAGE" ]]; then
 fi
 
 echo ""
-echo "Creating VM disks and domains..."
+echo "Step 1: Creating cloud-init ISOs..."
 echo ""
+
+# Check for cloud-localds (from cloud-utils package)
+if ! command -v cloud-localds &>/dev/null; then
+    echo "${{RED}}Error: cloud-localds not found!${{NC}}"
+    echo "Install it with: sudo dnf install cloud-utils"
+    exit 1
+fi
 
 """
 
@@ -557,6 +564,27 @@ MEMORY=({" ".join(memories)})
 VCPU=({" ".join(vcpus)})
 DISK_SIZE=({" ".join(disk_sizes)})
 DATA_DISK_SIZE=({" ".join(data_disk_sizes)})
+
+# Create persistent cloud-init ISOs in IMAGE_DIR
+for i in "${{!NAMES[@]}}"; do
+    NODE_NAME="${{NAMES[$i]}}"
+    ISO_PATH="$IMAGE_DIR/${{NODE_NAME}}-cloudinit.iso"
+
+    if [[ -f "$ISO_PATH" ]]; then
+        echo "${{YELLOW}}  ${{NODE_NAME}}-cloudinit.iso already exists. Skipping.${{NC}}"
+        continue
+    fi
+
+    echo "  Creating ${{NODE_NAME}}-cloudinit.iso"
+    cloud-localds \\
+        --network-config="$SCRIPT_DIR/cloud-init-network-config-${{NODE_NAME}}.yaml" \\
+        "$ISO_PATH" \\
+        "$SCRIPT_DIR/cloud-init-user-data-${{NODE_NAME}}.yaml"
+done
+
+echo ""
+echo "Step 2: Creating VM disks and domains..."
+echo ""
 
 # Create VMs in a loop
 for i in "${{!NAMES[@]}}"; do
@@ -601,9 +629,9 @@ for i in "${{!NAMES[@]}}"; do
         DISK_PARAMS="$DISK_PARAMS --disk path=$IMAGE_DIR/${{NODE_NAME}}-data.qcow2,device=disk,bus=virtio"
     fi
 
-    # Import the disk image and configure with cloud-init
+    # Import the disk image and attach persistent cloud-init ISO
     # --import tells virt-install to use the existing disk (not install an OS)
-    echo "  Defining VM and injecting cloud-init..."
+    echo "  Defining VM and attaching cloud-init ISO..."
     virt-install \\
         --connect {libvirt_uri} \\
         --name "$NODE_NAME" \\
@@ -612,11 +640,11 @@ for i in "${{!NAMES[@]}}"; do
         --cpu host-passthrough \\
         --machine q35 \\
         $DISK_PARAMS \\
+        --disk path=$IMAGE_DIR/${{NODE_NAME}}-cloudinit.iso,device=cdrom,bus=sata \\
         --network network=$NETWORK,model=virtio,mac=$NODE_MAC \\
         --os-variant fedora-unknown \\
         --graphics none \\
         --console pty,target_type=serial \\
-        --cloud-init user-data="$SCRIPT_DIR/cloud-init-user-data-${{NODE_NAME}}.yaml",network-config="$SCRIPT_DIR/cloud-init-network-config-${{NODE_NAME}}.yaml" \\
         --import \\
         --noautoconsole \\
         --autostart
@@ -707,6 +735,7 @@ for NODE_NAME in "${{NAMES[@]}}"; do
         virsh undefine "$NODE_NAME" --nvram 2>/dev/null || true
         rm -f "$IMAGE_DIR/${{NODE_NAME}}-os.qcow2"
         rm -f "$IMAGE_DIR/${{NODE_NAME}}-data.qcow2"
+        rm -f "$IMAGE_DIR/${{NODE_NAME}}-cloudinit.iso"
         echo "  ✓ $NODE_NAME removed"
     else
         echo "  - $NODE_NAME does not exist"
