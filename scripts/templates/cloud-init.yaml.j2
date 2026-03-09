@@ -55,6 +55,9 @@ write_files:
       {{ n.ip }}   {{ n.name }} {{ n.name }}.{{ domain }}
 {% endif %}
 {% endfor %}
+{% if k8s_api_vip %}
+      {{ k8s_api_vip.ip }}   {{ k8s_api_vip.hostname }} {{ k8s_api_vip.hostname }}.{{ domain }}
+{% endif %}
 
 {% set has_data_disk = (node.data_disk_size | default('0')) | int > 0 %}
 {% if has_data_disk %}

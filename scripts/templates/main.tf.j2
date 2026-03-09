@@ -93,6 +93,15 @@ resource "libvirt_network" "k8s" {
         ]
       },
 {% endfor %}
+{% if k8s_api_vip %}
+      {
+        ip        = "{{ k8s_api_vip.ip }}"
+        hostnames = [
+          { hostname = "{{ k8s_api_vip.hostname }}" },
+          { hostname = "{{ k8s_api_vip.hostname }}.{{ network.domain }}" }
+        ]
+      },
+{% endif %}
     ]
   }
 }

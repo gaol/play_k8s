@@ -260,6 +260,7 @@ def generate_cloud_init_files(config: dict, env: Environment, nodes: list):
             "domain": domain,
             "subnet_prefix": prefix,
             "gateway": gateway,
+            "k8s_api_vip": config.get("k8s_api_vip"),
         }
         rendered = tmpl.render(**ctx)
 
@@ -333,6 +334,16 @@ def generate_network_xml(config: dict, nodes: list):
             f'    </host>'
         )
 
+    # Add VIP DNS entry for HA control plane endpoint
+    vip = config.get("k8s_api_vip")
+    if vip:
+        host_entries.append(
+            f'    <host ip="{vip["ip"]}">\n'
+            f'      <hostname>{vip["hostname"]}</hostname>\n'
+            f'      <hostname>{vip["hostname"]}.{domain}</hostname>\n'
+            f'    </host>'
+        )
+
     dhcp_hosts = []
     for node in nodes:
         dhcp_hosts.append(
@@ -378,6 +389,7 @@ def generate_terraform_files(
         "base_image_source": base_image_source,
         "network": config["network"],
         "nodes": nodes,
+        "k8s_api_vip": config.get("k8s_api_vip"),
     }
 
     tf_path = RUN_DIR / "main.tf"

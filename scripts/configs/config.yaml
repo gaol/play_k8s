@@ -69,6 +69,14 @@ network:
     start: "192.168.150.100"
     end: "192.168.150.199"
 
+# Virtual IP for the K8s API server (HA control plane).
+# keepalived floats this IP across master nodes; all nodes use it
+# as the --control-plane-endpoint for kubeadm init/join.
+# Must be in the cluster subnet but outside DHCP range and node IPs.
+k8s_api_vip:
+  ip: "192.168.150.50"
+  hostname: "k8s-api"
+
 # Cluster node definitions.
 # Each node must have: name, ip.
 # Optional per-node overrides: ifname, gateway4, memory, vcpu, disk_size, data_disk_size.
