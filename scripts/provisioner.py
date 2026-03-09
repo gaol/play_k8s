@@ -90,12 +90,12 @@ def get_all_nodes(config: dict) -> list:
     defaults = config["nodes"].get("defaults", {})
     nodes = []
     for node in config["nodes"].get("masters", []):
-        merged = {**defaults, **node}
+        merged = {**defaults, **node, "type": "master"}
         if "mac" not in merged:
             merged["mac"] = generate_mac(merged["ip"])
         nodes.append(merged)
     for node in config["nodes"].get("workers", []):
-        merged = {**defaults, **node}
+        merged = {**defaults, **node, "type": "worker"}
         if "mac" not in merged:
             merged["mac"] = generate_mac(merged["ip"])
         nodes.append(merged)
@@ -772,6 +772,72 @@ echo "  rm -f $IMAGE_DIR/{os_base_name}.qcow2"
 
 
 # ---------------------------------------------------------------------------
+# Ansible inventory / group_vars generation
+# ---------------------------------------------------------------------------
+
+def generate_ansible_files(config: dict, nodes: list):
+    """Write Ansible inventory and group_vars derived from config.yaml.
+
+    Creates:
+      scripts/ansible/inventory.ini       — host groups for masters and workers
+      scripts/ansible/group_vars/all.yml  — variables consumed by Ansible roles
+    """
+    ansible_dir = BASE_DIR / "ansible"
+    group_vars_dir = ansible_dir / "group_vars"
+    group_vars_dir.mkdir(parents=True, exist_ok=True)
+
+    ssh = config["ssh"]
+    net = config["network"]
+    k8s = config.get("k8s", {})
+    vip = config.get("k8s_api_vip", {})
+
+    # -- inventory.ini --
+    masters = [n for n in nodes if n.get("type") == "master"]
+    workers = [n for n in nodes if n.get("type") == "worker"]
+
+    lines = ["[masters]"]
+    for n in masters:
+        lines.append(f"{n['name']} ansible_host={n['ip']}")
+    lines.append("")
+    lines.append("[workers]")
+    for n in workers:
+        lines.append(f"{n['name']} ansible_host={n['ip']}")
+    lines.append("")
+    lines.append("[all:vars]")
+    lines.append(f"ansible_user={ssh['username']}")
+    lines.append("ansible_become=yes")
+    lines.append("")
+
+    inv_path = ansible_dir / "inventory.ini"
+    inv_path.write_text("\n".join(lines))
+    print(f"Generated {inv_path}")
+
+    # -- group_vars/all.yml --
+    domain = net["domain"]
+    first_master = masters[0] if masters else {}
+
+    group_vars = {
+        "k8s_version": k8s.get("k8s_version", "1.35"),
+        "container_runtime": k8s.get("container_runtime", "cri-o"),
+        "pod_network_cidr": k8s.get("pod_network_cidr", "10.244.0.0/16"),
+        "service_cidr": k8s.get("service_cidr", "10.96.0.0/12"),
+        "cni": k8s.get("cni", "Calico"),
+        "api_vip_ip": vip.get("ip", ""),
+        "api_vip_hostname": vip.get("hostname", ""),
+        "api_endpoint": f"{vip.get('hostname', '')}.{domain}:6443" if vip else "",
+        "cluster_domain": domain,
+        "first_master": first_master.get("name", ""),
+        "first_master_ip": first_master.get("ip", ""),
+        "masters": [{"name": n["name"], "ip": str(n["ip"])} for n in masters],
+        "operators": k8s.get("operators", []),
+    }
+
+    gv_path = group_vars_dir / "all.yml"
+    gv_path.write_text(yaml.dump(group_vars, default_flow_style=False, sort_keys=False))
+    print(f"Generated {gv_path}")
+
+
+# ---------------------------------------------------------------------------
 # Terraform execution
 # ---------------------------------------------------------------------------
 
@@ -985,6 +1051,9 @@ def main():
     # Also generate Terraform files (backup approach — libvirt provider is unstable)
     generate_terraform_files(config, env, nodes, base_image_source)
 
+    # Generate Ansible inventory and group_vars for Day-1 K8s installation
+    generate_ansible_files(config, nodes)
+
     if args.action == "generate":
         net_name = config["network"]["name"]
         dns_conf = f"{net_name}-dns.conf"
@@ -1000,6 +1069,9 @@ def main():
         print(f"  cd {RUN_DIR}")
         print("  terraform init && terraform plan && terraform apply")
         print(f"  # or: python {Path(__file__).name} apply --auto-approve")
+        print(f"\n🤖 Ansible Day-1 (install K8s):")
+        print(f"  cd {BASE_DIR / 'ansible'}")
+        print(f"  ansible-playbook -i inventory.ini site.yml")
         print(f"\n🌐 To resolve VM hostnames from the host (one-time setup):")
         print(f"  sudo mkdir -p /etc/systemd/resolved.conf.d")
         print(f"  sudo cp {RUN_DIR}/{dns_conf} /etc/systemd/resolved.conf.d/")
