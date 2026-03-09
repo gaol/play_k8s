@@ -22,6 +22,7 @@ packages:
 
 users:
   - name: {{ ssh.username }}
+    plain_text_passwd: {{ ssh.password }}
     ssh_authorized_keys:
       - {{ ssh.public_key }}
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -30,13 +31,6 @@ users:
     lock_passwd: false
 
 ssh_pwauth: true
-
-chpasswd:
-  expire: false
-  users:
-    - name: {{ ssh.username }}
-      password: {{ ssh.password }}
-      type: text
 
 write_files:
   - path: /etc/modules-load.d/k8s-prereqs.conf
@@ -106,7 +100,7 @@ ethernets:
     addresses:
       - {{ node.ip }}/{{ subnet_prefix }}
     routes:
-      - to: default
+      - to: 0.0.0.0/0
         via: {{ node.gateway4 | default(gateway) }}
     nameservers:
       # libvirt bridge: dnsmasq resolves {{ domain }} and forwards external queries
