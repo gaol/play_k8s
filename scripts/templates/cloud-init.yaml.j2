@@ -82,6 +82,8 @@ runcmd:
   - sysctl --system
   - swapoff -a
   - sed -i.bak '/[[:space:]]swap[[:space:]]/s/^/#/' /etc/fstab
+  - systemctl mask systemd-zram-setup@zram0.service
+  - dnf remove -y zram-generator-defaults
   - grubby --update-kernel=ALL --args="console=ttyS0,115200"
   - setenforce 0
   - sed -i 's/^SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config
