@@ -69,12 +69,11 @@ network:
     start: "192.168.150.100"
     end: "192.168.150.199"
 
-# Virtual IP for the K8s API server (HA control plane).
-# keepalived floats this IP across master nodes; all nodes use it
-# as the --control-plane-endpoint for kubeadm init/join.
-# Must be in the cluster subnet but outside DHCP range and node IPs.
+# K8s API endpoint DNS entry.
+# The hostname resolves to the infra node's IP via libvirt dnsmasq.
+# All nodes use it as the --control-plane-endpoint for kubeadm init/join.
 k8s_api_vip:
-  ip: "192.168.150.50"
+  ip: "192.168.150.30"
   hostname: "k8s-api"
 
 # Cluster node definitions.
@@ -90,6 +89,12 @@ nodes:
     disk_size: "40"
     data_disk_size: "0"
 
+  infra:
+    - name: k8s-infra1
+      ip: 192.168.150.30
+      memory: "4096"
+      vcpu: "2"
+
   masters:
     - name: k8s-master1
       ip: 192.168.150.10
@@ -97,18 +102,12 @@ nodes:
     - name: k8s-master2
       ip: 192.168.150.11
 
-    - name: k8s-master3
-      ip: 192.168.150.12
-
   workers:
     - name: k8s-worker1
       ip: 192.168.150.20
 
     - name: k8s-worker2
       ip: 192.168.150.21
-
-    - name: k8s-worker3
-      ip: 192.168.150.22
 
 # Kubernetes configuration (used by Day-1 Ansible, recorded here for reference)
 k8s:

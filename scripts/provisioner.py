@@ -99,6 +99,11 @@ def get_all_nodes(config: dict) -> list:
         if "mac" not in merged:
             merged["mac"] = generate_mac(merged["ip"])
         nodes.append(merged)
+    for node in config["nodes"].get("infra", []):
+        merged = {**defaults, **node, "type": "infra"}
+        if "mac" not in merged:
+            merged["mac"] = generate_mac(merged["ip"])
+        nodes.append(merged)
     return nodes
 
 
@@ -794,6 +799,7 @@ def generate_ansible_files(config: dict, nodes: list):
     # -- inventory.ini --
     masters = [n for n in nodes if n.get("type") == "master"]
     workers = [n for n in nodes if n.get("type") == "worker"]
+    infra = [n for n in nodes if n.get("type") == "infra"]
 
     lines = ["[masters]"]
     for n in masters:
@@ -801,6 +807,10 @@ def generate_ansible_files(config: dict, nodes: list):
     lines.append("")
     lines.append("[workers]")
     for n in workers:
+        lines.append(f"{n['name']} ansible_host={n['ip']}")
+    lines.append("")
+    lines.append("[infra]")
+    for n in infra:
         lines.append(f"{n['name']} ansible_host={n['ip']}")
     lines.append("")
     lines.append("[all:vars]")
@@ -824,7 +834,7 @@ def generate_ansible_files(config: dict, nodes: list):
         "cni": k8s.get("cni", "Calico"),
         "api_vip_ip": vip.get("ip", ""),
         "api_vip_hostname": vip.get("hostname", ""),
-        "api_endpoint": f"{vip.get('hostname', '')}.{domain}:8443" if vip else "",
+        "api_endpoint": f"{vip.get('hostname', '')}.{domain}:6443" if vip else "",
         "cluster_domain": domain,
         "first_master": first_master.get("name", ""),
         "first_master_ip": first_master.get("ip", ""),
@@ -932,7 +942,8 @@ def add_node_to_config(config_path: Path, config: dict, name: str, ip: str,
         if str(value) != str(defaults.get(key, "")):
             new_node[key] = value
 
-    target_list = "masters" if node_type == "master" else "workers"
+    type_to_list = {"master": "masters", "worker": "workers", "infra": "infra"}
+    target_list = type_to_list.get(node_type, "workers")
     config["nodes"].setdefault(target_list, []).append(new_node)
 
     with open(config_path, "w") as fh:
