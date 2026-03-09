@@ -1,0 +1,70 @@
+---
+- name: Remove zram swap
+  ansible.builtin.dnf:
+    name: zram-generator-defaults
+    state: absent
+
+- name: Add CRI-O repository
+  ansible.builtin.yum_repository:
+    name: cri-o
+    description: "CRI-O stable v{{ k8s_version }}"
+    baseurl: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v{{ k8s_version }}/rpm/"
+    gpgcheck: true
+    gpgkey: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v{{ k8s_version }}/rpm/repodata/repomd.xml.key"
+
+- name: Add Kubernetes repository
+  ansible.builtin.yum_repository:
+    name: kubernetes
+    description: "Kubernetes stable v{{ k8s_version }}"
+    baseurl: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/rpm/"
+    gpgcheck: true
+    gpgkey: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/rpm/repodata/repomd.xml.key"
+
+- name: Install CRI-O and Kubernetes packages
+  ansible.builtin.dnf:
+    name:
+      - cri-o
+      - kubelet
+      - kubeadm
+      - kubectl
+      - iproute-tc
+    state: present
+
+- name: Enable and start CRI-O
+  ansible.builtin.systemd:
+    name: crio
+    enabled: true
+    state: started
+
+- name: Enable kubelet
+  ansible.builtin.systemd:
+    name: kubelet
+    enabled: true
+
+- name: Configure crictl to use CRI-O socket
+  ansible.builtin.copy:
+    dest: /etc/crictl.yaml
+    content: |
+      runtime-endpoint: unix:///var/run/crio/crio.sock
+      image-endpoint: unix:///var/run/crio/crio.sock
+
+- name: Create CNI plugin directory
+  ansible.builtin.file:
+    path: /opt/cni/bin
+    state: directory
+    mode: "0755"
+
+- name: Detect architecture
+  ansible.builtin.set_fact:
+    cni_arch: "{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }}"
+
+- name: Download CNI plugins
+  ansible.builtin.get_url:
+    url: "https://github.com/containernetworking/plugins/releases/download/v1.6.2/cni-plugins-linux-{{ cni_arch }}-v1.6.2.tgz"
+    dest: /tmp/cni-plugins.tgz
+
+- name: Extract CNI plugins
+  ansible.builtin.unarchive:
+    src: /tmp/cni-plugins.tgz
+    dest: /opt/cni/bin
+    remote_src: true

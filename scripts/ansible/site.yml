@@ -1,0 +1,39 @@
+---
+# K8s Day-1 cluster installation
+# Run: ansible-playbook -i inventory.ini site.yml
+
+- name: Install common packages on all nodes
+  hosts: all
+  roles:
+    - common
+
+- name: Configure HA control plane (keepalived + HAProxy)
+  hosts: masters
+  roles:
+    - ha-control-plane
+
+- name: Initialize first control plane node
+  hosts: masters[0]
+  roles:
+    - master-init
+
+- name: Install Calico CNI
+  hosts: masters[0]
+  roles:
+    - calico
+
+- name: Join additional control plane nodes
+  hosts: masters[1:]
+  serial: 1
+  roles:
+    - master-join
+
+- name: Join worker nodes
+  hosts: workers
+  roles:
+    - worker
+
+- name: Install operators
+  hosts: masters[0]
+  roles:
+    - operators
