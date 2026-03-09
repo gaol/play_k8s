@@ -114,4 +114,8 @@ nodes:
 k8s:
   container_runtime: "cri-o"
   cni: "Calico"
-  k8s_version: "1.35.1"
+  k8s_version: "1.35"
+  pod_network_cidr: "10.244.0.0/16"
+  service_cidr: "10.96.0.0/12"
+  operators:
+    - lvm-operator
