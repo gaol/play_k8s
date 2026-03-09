@@ -962,14 +962,16 @@ def main():
 
     env = _make_jinja_env()
     generate_cloud_init_files(config, env, nodes)
-    generate_terraform_files(config, env, nodes, base_image_source)
     generate_network_xml(config, nodes)
     generate_host_dns_conf(config)
 
-    # Also generate virt-install scripts as an alternative to Terraform
+    # Generate virt-install scripts (primary workflow)
     generate_virt_install_network_script(config)
     generate_virt_install_create_vms_script(config, nodes)
     generate_virt_install_cleanup_script(config, nodes)
+
+    # Also generate Terraform files (backup approach — libvirt provider is unstable)
+    generate_terraform_files(config, env, nodes, base_image_source)
 
     if args.action == "generate":
         net_name = config["network"]["name"]
@@ -977,15 +979,15 @@ def main():
         print("\n" + "=" * 60)
         print("Files generated successfully!")
         print("=" * 60)
-        print("\n📦 Terraform workflow:")
-        print(f"  cd {RUN_DIR}")
-        print("  terraform init && terraform plan && terraform apply")
-        print(f"  # or: python {Path(__file__).name} apply --auto-approve")
-        print(f"\n🔧 virt-install workflow (alternative):")
+        print(f"\n🔧 virt-install workflow (primary):")
         print(f"  cd {RUN_DIR}")
         print(f"  ./virt-install-setup-network.sh      # Create network first")
         print(f"  ./virt-install-create-vms.sh         # Create all VMs")
         print(f"  ./virt-install-cleanup.sh            # Cleanup when done")
+        print(f"\n📦 Terraform workflow (backup — libvirt provider is unstable):")
+        print(f"  cd {RUN_DIR}")
+        print("  terraform init && terraform plan && terraform apply")
+        print(f"  # or: python {Path(__file__).name} apply --auto-approve")
         print(f"\n🌐 To resolve VM hostnames from the host (one-time setup):")
         print(f"  sudo mkdir -p /etc/systemd/resolved.conf.d")
         print(f"  sudo cp {RUN_DIR}/{dns_conf} /etc/systemd/resolved.conf.d/")

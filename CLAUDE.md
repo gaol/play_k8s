@@ -24,15 +24,19 @@ These directories serve as reference documentation and history of the learning p
 The `scripts/` directory contains automation to provision the entire cluster:
 - **provisioner.py**: Main Python script that orchestrates the provisioning
 - **configs/config.yaml**: Single source of truth for all cluster configuration
-- **templates/**: Jinja2 templates for Terraform files and cloud-init configs
-- **run/**: Generated Terraform files (created at runtime, may not exist in repo)
+- **templates/**: Jinja2 templates for cloud-init configs and Terraform files
+- **run/**: Generated scripts and files (created at runtime, may not exist in repo)
+
+**Two VM provisioning approaches:**
+- **virt-install (primary)**: Shell scripts using `virt-install` + `cloud-localds` for cloud-init ISOs. Reliable and straightforward.
+- **Terraform (backup)**: Uses the `libvirt` provider. Kept as a backup approach since the Terraform libvirt provider is not yet stable.
 
 ## Cluster Architecture
 
 **Infrastructure**:
-- Runs on libvirt/KVM with Fedora 40 Cloud minimal images
-- 1 master node + 2 worker nodes + 1 infrastructure node (for HAProxy)
-- Static IP addresses (192.168.122.x subnet)
+- Runs on libvirt/KVM with Fedora 43 Cloud minimal images
+- 3 master nodes + 3 worker nodes
+- Static IP addresses (192.168.150.x subnet)
 - VMs provisioned with cloud-init for initial configuration
 
 **Kubernetes Stack**:
@@ -53,7 +57,7 @@ External → HAProxy (NodePort) → Service (ClusterIP) → Pods
 All cluster configuration is centralized in `scripts/configs/config.yaml`:
 - libvirt connection URI and image directory
 - SSH credentials and public key
-- OS base image URL (Fedora 40 Cloud qcow2)
+- OS base image URL (Fedora 43 Cloud qcow2)
 - Node definitions (name, IP, type, resources, labels)
 - Kubernetes version and component choices (runtime, CNI)
 
@@ -73,8 +77,8 @@ virsh shutdown <vm-name>
 # Delete VM definition (does not remove disk)
 virsh undefine <vm-name>
 
-# SSH into VMs (requires /etc/hosts entries)
-ssh lgao@k8s-master
+# SSH into VMs
+ssh lgao@k8s-master1
 ssh lgao@k8s-worker1
 ```
 
@@ -103,25 +107,20 @@ kubectl get svc -n haproxy-controller
 # Install Python dependencies
 pip install -r scripts/requirements.txt
 
-# Generate Terraform + cloud-init files only (inspect before applying)
+# Generate all files (virt-install scripts + cloud-init + Terraform)
 python scripts/provisioner.py generate
 
-# Full lifecycle
+# virt-install workflow (primary)
+cd scripts/run
+./virt-install-setup-network.sh      # Create libvirt network
+./virt-install-create-vms.sh         # Create cloud-init ISOs + VMs
+./virt-install-cleanup.sh            # Destroy VMs when done
+
+# Terraform workflow (backup — libvirt provider is unstable)
 python scripts/provisioner.py init
 python scripts/provisioner.py plan
 python scripts/provisioner.py apply --auto-approve
-
-# Add a single new node to an existing cluster
-python scripts/provisioner.py add-node \
-    --name k8s-worker4 --ip 192.168.122.23 --type worker \
-    --disk-size 40 --data-disk-size 40 \
-    --apply --auto-approve
-
-# Tear down
 python scripts/provisioner.py destroy --auto-approve
-
-# Pre-download libvirt provider (for air-gapped environments)
-python scripts/provisioner.py apply --download-provider
 ```
 
 The provisioner workflow:
@@ -129,8 +128,9 @@ The provisioner workflow:
 2. Reads the SSH public key file and injects the content into cloud-init
 3. Downloads base OS image to `image_dir` if URL is remote and libvirt is local
 4. Generates `run/cloud-init-user-data-<node>.yaml` and `run/cloud-init-network-config-<node>.yaml` for each node
-5. Generates `run/main.tf` from `templates/main.tf.j2`
-6. Runs Terraform commands in `run/`
+5. Generates virt-install shell scripts (`setup-network.sh`, `create-vms.sh`, `cleanup.sh`)
+6. Generates `run/main.tf` from `templates/main.tf.j2` (Terraform backup)
+7. The `create-vms.sh` script uses `cloud-localds` to build persistent cloud-init ISOs, then `virt-install` to create VMs
 
 ### Image Registry
 ```bash
