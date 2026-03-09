@@ -26,7 +26,7 @@ download_dir: "~/vms"
 # SSH access for the provisioned VMs
 ssh:
   username: "lgao"
-  password: "change-it"
+  password: "password"
   # The file content is read at runtime and injected into cloud-init
   public_key_file: "~/.ssh/id_rsa.pub"
 
@@ -67,7 +67,7 @@ network:
   gateway: "192.168.150.1"
   dhcp_range:
     start: "192.168.150.100"
-    end:   "192.168.150.199"
+    end: "192.168.150.199"
 
 # Cluster node definitions.
 # Each node must have: name, ip.

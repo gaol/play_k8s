@@ -30,11 +30,9 @@ users:
     lock_passwd: false
 
 chpasswd:
-  expire: false
-  users:
-    - name: {{ ssh.username }}
-      password: "{{ ssh.password }}"
-      type: text
+  list: |
+    {{ ssh.username }}:{{ ssh.password }}
+  expire: False
 
 write_files:
   - path: /etc/modules-load.d/k8s-prereqs.conf
