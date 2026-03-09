@@ -80,6 +80,8 @@ runcmd:
   - swapoff -a
   - sed -i.bak '/[[:space:]]swap[[:space:]]/s/^/#/' /etc/fstab
   - grubby --update-kernel=ALL --args="console=ttyS0,115200"
+  - setenforce 0
+  - sed -i 's/^SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config
 {% if has_data_disk %}
   - mkdir -p /mnt/data
   - chown {{ ssh.username }}:{{ ssh.username }} /mnt/data
@@ -87,6 +89,11 @@ runcmd:
 {% for cmd in run_once_commands | default([]) %}
   - {{ cmd }}
 {% endfor %}
+
+power_state:
+  mode: reboot
+  message: "Rebooting after cloud-init setup"
+  condition: true
 
 ---
 # Network configuration (cloud-init network v2 / netplan format)
