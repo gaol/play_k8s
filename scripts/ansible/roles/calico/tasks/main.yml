@@ -1,7 +1,7 @@
 ---
 - name: Apply Tigera operator manifest
   ansible.builtin.command:
-    cmd: kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.3/manifests/tigera-operator.yaml
+    cmd: kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v{{ calico_version }}/manifests/tigera-operator.yaml
   become: false
   register: tigera_result
   changed_when: "'created' in tigera_result.stdout"
