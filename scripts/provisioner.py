@@ -824,7 +824,7 @@ def generate_ansible_files(config: dict, nodes: list):
         "cni": k8s.get("cni", "Calico"),
         "api_vip_ip": vip.get("ip", ""),
         "api_vip_hostname": vip.get("hostname", ""),
-        "api_endpoint": f"{vip.get('hostname', '')}.{domain}:6443" if vip else "",
+        "api_endpoint": f"{vip.get('hostname', '')}.{domain}:8443" if vip else "",
         "cluster_domain": domain,
         "first_master": first_master.get("name", ""),
         "first_master_ip": first_master.get("ip", ""),

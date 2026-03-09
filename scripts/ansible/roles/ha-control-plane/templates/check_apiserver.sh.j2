@@ -8,4 +8,4 @@ errorExit() {
     exit 1
 }
 
-curl --silent --max-time 2 --insecure https://localhost:6443/healthz -o /dev/null || errorExit "Error GET https://localhost:6443/healthz"
+curl --silent --max-time 2 --insecure https://localhost:8443/healthz -o /dev/null || errorExit "Error GET https://localhost:8443/healthz"
