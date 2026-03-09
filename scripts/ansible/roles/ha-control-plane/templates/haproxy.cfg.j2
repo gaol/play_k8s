@@ -1,0 +1,24 @@
+# K8s API Server Load Balancer
+global
+    log /dev/log local0
+    maxconn 2000
+    daemon
+
+defaults
+    log     global
+    mode    tcp
+    option  tcplog
+    timeout connect 5s
+    timeout client  30s
+    timeout server  30s
+
+frontend k8s_api
+    bind *:6443
+    default_backend k8s_api_backend
+
+backend k8s_api_backend
+    balance roundrobin
+    option tcp-check
+{% for master in masters %}
+    server {{ master.name }} {{ master.ip }}:6443 check fall 3 rise 2
+{% endfor %}

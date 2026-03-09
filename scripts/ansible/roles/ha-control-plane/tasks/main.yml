@@ -1,0 +1,44 @@
+---
+- name: Install keepalived and haproxy
+  ansible.builtin.dnf:
+    name:
+      - keepalived
+      - haproxy
+    state: present
+
+- name: Set keepalived priority based on inventory position
+  ansible.builtin.set_fact:
+    keepalived_priority: "{{ 101 - groups['masters'].index(inventory_hostname) }}"
+    keepalived_state: "{{ 'MASTER' if inventory_hostname == groups['masters'][0] else 'BACKUP' }}"
+
+- name: Deploy HAProxy configuration
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    mode: "0644"
+  notify: restart haproxy
+
+- name: Deploy keepalived health check script
+  ansible.builtin.template:
+    src: check_apiserver.sh.j2
+    dest: /etc/keepalived/check_apiserver.sh
+    mode: "0755"
+
+- name: Deploy keepalived configuration
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    mode: "0644"
+  notify: restart keepalived
+
+- name: Enable and start HAProxy
+  ansible.builtin.systemd:
+    name: haproxy
+    enabled: true
+    state: started
+
+- name: Enable and start keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    enabled: true
+    state: started
