@@ -131,6 +131,28 @@ The provisioner workflow:
 5. Generates virt-install shell scripts (`setup-network.sh`, `create-vms.sh`, `cleanup.sh`)
 6. Generates `run/main.tf` from `templates/main.tf.j2` (Terraform backup)
 7. The `create-vms.sh` script uses `cloud-localds` to build persistent cloud-init ISOs, then `virt-install` to create VMs
+8. Generates Ansible inventory (`scripts/ansible/inventory.ini`) and group_vars (`scripts/ansible/group_vars/all.yml`)
+
+### Ansible Day-1 (K8s Installation)
+```bash
+# After VMs are provisioned and running:
+cd scripts/ansible
+ansible-playbook -i inventory.ini site.yml
+```
+
+The Ansible playbook executes roles in order:
+1. **common** — CRI-O, kubelet, kubeadm, kubectl, CNI plugins (all nodes)
+2. **ha-control-plane** — keepalived + HAProxy for API server VIP (masters)
+3. **master-init** — kubeadm init on first master
+4. **calico** — Calico CNI via Tigera operator
+5. **master-join** — additional masters join control plane
+6. **worker** — workers join cluster
+7. **operators** — install configured operators (e.g., lvm-operator)
+
+To add a new operator:
+1. Create `scripts/ansible/operators/<name>/install.sh` (and any manifests)
+2. Add the name to `k8s.operators` list in `config.yaml`
+3. Re-run `provisioner.py generate` and the ansible playbook
 
 ### Image Registry
 ```bash
