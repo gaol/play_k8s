@@ -1,62 +1,103 @@
 #!/bin/bash
-# Install TopoLVM — LVM-based CSI storage for Kubernetes
-# This is the vanilla K8s equivalent of OpenShift's LVMS operator.
+# Install LVMS operator via OLM (Operator Lifecycle Manager)
+#
+# This installs the OpenShift LVMS operator on vanilla K8s using OLM,
+# the same operator management framework used by OpenShift.
+#
+# OLM handles:
+#   - Operator installation from a CatalogSource
+#   - Dependency resolution (e.g., cert-manager if needed)
+#   - Operator upgrades via Subscription channels
 #
 # Prerequisites:
-#   - cert-manager (installed automatically by this script)
-#   - Each worker node needs an LVM volume group named "topolvm-vg".
-#     Create it with: sudo pvcreate /dev/vdb && sudo vgcreate topolvm-vg /dev/vdb
+#   - Each worker node needs an available block device (e.g., /dev/vdb)
+#     The LVMCluster CR will create the VG automatically.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Install helm if not present
-if ! command -v helm &>/dev/null; then
-    echo "Installing helm..."
-    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-fi
+OLM_VERSION="v0.31.0"
+NAMESPACE="openshift-storage"
 
-# --- cert-manager (required by TopoLVM for webhook TLS) ---
-echo "=== Installing cert-manager ==="
-if kubectl get namespace cert-manager &>/dev/null; then
-    echo "cert-manager namespace exists, skipping install."
+# ---------------------------------------------------------------
+# Step 1: Install OLM
+# ---------------------------------------------------------------
+echo "=== Step 1: Installing OLM ${OLM_VERSION} ==="
+
+if kubectl get deployment olm-operator -n olm &>/dev/null; then
+    echo "OLM already installed, skipping."
 else
-    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.yaml
+    curl -fsSL "https://github.com/operator-framework/operator-lifecycle-manager/releases/download/${OLM_VERSION}/install.sh" \
+        | bash -s "${OLM_VERSION}"
 fi
 
-echo "Waiting for cert-manager..."
-kubectl wait --for=condition=Available deployment/cert-manager -n cert-manager --timeout=120s
-kubectl wait --for=condition=Available deployment/cert-manager-webhook -n cert-manager --timeout=120s
-kubectl wait --for=condition=Available deployment/cert-manager-cainjector -n cert-manager --timeout=120s
+echo "Waiting for OLM to be ready..."
+kubectl wait --for=condition=Available deployment/olm-operator -n olm --timeout=120s
+kubectl wait --for=condition=Available deployment/catalog-operator -n olm --timeout=120s
 
-# --- TopoLVM ---
+# Verify the community catalog is available (installed by OLM by default)
+echo "Waiting for OperatorHub community catalog..."
+kubectl wait --for=jsonpath='{.status.connectionState.lastObservedState}'=READY \
+    catalogsource/operatorhubio-catalog -n olm --timeout=300s
+
+# ---------------------------------------------------------------
+# Step 2: Create namespace and OperatorGroup
+# ---------------------------------------------------------------
 echo ""
-echo "=== Installing TopoLVM (LVM CSI driver) ==="
+echo "=== Step 2: Creating namespace and OperatorGroup ==="
 
-helm repo add topolvm https://topolvm.github.io/topolvm
-helm repo update
+kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f "$SCRIPT_DIR/operatorgroup.yaml"
 
-if helm status topolvm -n topolvm-system &>/dev/null; then
-    echo "TopoLVM already installed. Upgrading..."
-    helm upgrade topolvm topolvm/topolvm -n topolvm-system
-else
-    echo "Installing TopoLVM..."
-    kubectl create namespace topolvm-system --dry-run=client -o yaml | kubectl apply -f -
-    helm install topolvm topolvm/topolvm -n topolvm-system
+# ---------------------------------------------------------------
+# Step 3: Subscribe to LVMS operator
+# ---------------------------------------------------------------
+echo ""
+echo "=== Step 3: Subscribing to lvms-operator ==="
+
+kubectl apply -f "$SCRIPT_DIR/subscription.yaml"
+
+# Wait for the operator CSV to be installed
+echo "Waiting for LVMS operator to install (this may take a few minutes)..."
+for i in $(seq 1 60); do
+    CSV=$(kubectl get subscription lvms-operator -n "${NAMESPACE}" \
+        -o jsonpath='{.status.installedCSV}' 2>/dev/null || true)
+    if [[ -n "$CSV" ]]; then
+        echo "CSV found: $CSV"
+        break
+    fi
+    echo "  Waiting for CSV... ($i/60)"
+    sleep 10
+done
+
+if [[ -z "$CSV" ]]; then
+    echo "ERROR: Timed out waiting for LVMS operator CSV"
+    echo "Debug: kubectl get subscription lvms-operator -n ${NAMESPACE} -o yaml"
+    exit 1
 fi
 
-echo "Waiting for TopoLVM controller..."
-kubectl wait --for=condition=Available deployment/topolvm-controller \
-    -n topolvm-system --timeout=120s
+# Wait for the CSV to succeed
+echo "Waiting for CSV ${CSV} to reach Succeeded phase..."
+kubectl wait --for=jsonpath='{.status.phase}'=Succeeded \
+    csv/"${CSV}" -n "${NAMESPACE}" --timeout=300s
 
-# Apply custom StorageClass
-echo "Applying StorageClass..."
-kubectl apply -f "$SCRIPT_DIR/storageclass.yaml"
+echo "LVMS operator installed successfully!"
+
+# ---------------------------------------------------------------
+# Step 4: Create LVMCluster
+# ---------------------------------------------------------------
+echo ""
+echo "=== Step 4: Creating LVMCluster ==="
+
+kubectl apply -f "$SCRIPT_DIR/lvmcluster.yaml"
 
 echo ""
-echo "=== TopoLVM installation complete ==="
+echo "=== LVMS operator installation complete ==="
 echo ""
-echo "NOTE: Each worker node needs an LVM volume group named 'topolvm-vg'."
-echo "Create it with: sudo pvcreate /dev/vdb && sudo vgcreate topolvm-vg /dev/vdb"
+echo "The LVMCluster CR will auto-discover available block devices on worker nodes"
+echo "and create a default StorageClass."
 echo ""
-echo "Verify with: kubectl get sc"
+echo "Verify with:"
+echo "  kubectl get lvmcluster -n ${NAMESPACE}"
+echo "  kubectl get sc"
+echo "  kubectl get pods -n ${NAMESPACE}"
