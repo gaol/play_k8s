@@ -33,17 +33,6 @@ users:
 ssh_pwauth: true
 
 write_files:
-  - path: /etc/modules-load.d/k8s-prereqs.conf
-    content: |
-      overlay
-      br_netfilter
-
-  - path: /etc/sysctl.d/99-k8s.conf
-    content: |
-      net.ipv4.ip_forward = 1
-      net.bridge.bridge-nf-call-iptables = 1
-      net.bridge.bridge-nf-call-ip6tables = 1
-
   # Static /etc/hosts with all cluster nodes (pre-DNS fallback)
   - path: /etc/hosts
     content: |
@@ -60,9 +49,6 @@ write_files:
 {% endif %}
 
 runcmd:
-  - modprobe overlay
-  - modprobe br_netfilter
-  - sysctl --system
   - swapoff -a
   - sed -i.bak '/[[:space:]]swap[[:space:]]/s/^/#/' /etc/fstab
   - dnf remove -y zram-generator-defaults
