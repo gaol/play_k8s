@@ -49,11 +49,6 @@ write_files:
 {% endif %}
 
 runcmd:
-  - swapoff -a
-  - sed -i.bak '/[[:space:]]swap[[:space:]]/s/^/#/' /etc/fstab
-  - dnf remove -y zram-generator-defaults
-  - systemctl disable --now systemd-zram-setup@zram0.service || true
-  - systemctl reset-failed systemd-zram-setup@zram0.service || true
   - grubby --update-kernel=ALL --args="console=ttyS0,115200"
   - setenforce 0
   - sed -i 's/^SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config
