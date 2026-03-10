@@ -17,6 +17,8 @@
     cmd: bash /tmp/k8s-operators/{{ item }}/install.sh
     chdir: /tmp/k8s-operators/{{ item }}
   become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
   loop: "{{ operators }}"
   register: operator_results
 
