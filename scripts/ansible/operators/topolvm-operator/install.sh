@@ -7,11 +7,10 @@
 #   - Namespace (openshift-storage)
 #   - OperatorGroup (scopes the operator)
 #   - Subscription (triggers OLM to install the operator)
-#   - LVMCluster CR (configures LVM storage on worker nodes)
+#   - TopolvmCluster CR (configures TopoLVM storage on worker nodes)
 #
 # Prerequisites:
 #   - Each worker node needs an available block device (e.g., /dev/vdb)
-#     The LVMCluster CR will auto-discover and use it.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -71,20 +70,17 @@ kubectl wait --for=jsonpath='{.status.phase}'=Succeeded \
 echo "TopoLVM operator installed successfully!"
 
 # ---------------------------------------------------------------
-# Step 4: Create LVMCluster
+# Step 4: Create TopolvmCluster
 # ---------------------------------------------------------------
 echo ""
-echo "=== Creating LVMCluster ==="
+echo "=== Creating TopolvmCluster ==="
 
-kubectl apply -f "$SCRIPT_DIR/lvmcluster.yaml"
+kubectl apply -f "$SCRIPT_DIR/topolvmcluster.yaml"
 
 echo ""
 echo "=== TopoLVM operator installation complete ==="
 echo ""
-echo "The LVMCluster CR will auto-discover available block devices"
-echo "on worker nodes and create a default StorageClass."
-echo ""
 echo "Verify with:"
-echo "  kubectl get lvmcluster -n ${NAMESPACE}"
+echo "  kubectl get topolvmcluster -n ${NAMESPACE}"
 echo "  kubectl get sc"
 echo "  kubectl get pods -n ${NAMESPACE}"

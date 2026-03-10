@@ -54,5 +54,10 @@
 - name: Store join facts for other plays
   ansible.builtin.add_host:
     name: k8s_join_info
+    groups: _join_info
     kubeadm_join_command: "{{ kubeadm_join_command }}"
     certificate_key: "{{ certificate_key }}"
+
+- name: Debug join info
+  ansible.builtin.debug:
+    msg: "Join command stored. Certificate key: {{ certificate_key[:16] }}..."

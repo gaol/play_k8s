@@ -4,6 +4,15 @@
     path: /etc/kubernetes/kubelet.conf
   register: kubelet_conf
 
+- name: Fail if join info is not available
+  ansible.builtin.fail:
+    msg: >
+      Join info not available. master-init must run successfully first.
+      Check that masters[0] completed without errors.
+  when:
+    - not kubelet_conf.stat.exists
+    - "'k8s_join_info' not in hostvars"
+
 - name: Join cluster as control plane node
   ansible.builtin.command:
     cmd: >
