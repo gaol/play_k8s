@@ -29,11 +29,18 @@
     cmd: swapoff -a
   changed_when: true
 
-- name: Mask zram systemd service to prevent swap on reboot
+- name: Disable zram systemd service
   ansible.builtin.systemd:
     name: "systemd-zram-setup@zram0.service"
-    masked: true
+    enabled: false
+    state: stopped
   failed_when: false
+
+- name: Clear zram failed state
+  ansible.builtin.command:
+    cmd: systemctl reset-failed systemd-zram-setup@zram0.service
+  failed_when: false
+  changed_when: false
 
 - name: Comment out swap entries in fstab
   ansible.builtin.replace:
