@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install LVMS operator via OLM Subscription
+# Install TopoLVM operator via OLM Subscription
 #
 # Requires: OLM must be installed (handled by the olm Ansible role)
 #
@@ -32,7 +32,7 @@ echo "OLM is available."
 # Step 2: Create namespace, OperatorGroup, and Subscription
 # ---------------------------------------------------------------
 echo ""
-echo "=== Creating namespace and subscribing to lvms-operator ==="
+echo "=== Creating namespace and subscribing to topolvm-operator ==="
 
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "$SCRIPT_DIR/operatorgroup.yaml"
@@ -42,11 +42,11 @@ kubectl apply -f "$SCRIPT_DIR/subscription.yaml"
 # Step 3: Wait for operator to be installed
 # ---------------------------------------------------------------
 echo ""
-echo "=== Waiting for LVMS operator to install ==="
+echo "=== Waiting for TopoLVM operator to install ==="
 
 CSV=""
 for i in $(seq 1 60); do
-    CSV=$(kubectl get subscription lvms-operator -n "${NAMESPACE}" \
+    CSV=$(kubectl get subscription topolvm-operator -n "${NAMESPACE}" \
         -o jsonpath='{.status.installedCSV}' 2>/dev/null || true)
     if [[ -n "$CSV" ]]; then
         echo "CSV found: $CSV"
@@ -57,9 +57,9 @@ for i in $(seq 1 60); do
 done
 
 if [[ -z "$CSV" ]]; then
-    echo "ERROR: Timed out waiting for LVMS operator CSV"
+    echo "ERROR: Timed out waiting for TopoLVM operator CSV"
     echo "Debug with:"
-    echo "  kubectl get subscription lvms-operator -n ${NAMESPACE} -o yaml"
+    echo "  kubectl get subscription topolvm-operator -n ${NAMESPACE} -o yaml"
     echo "  kubectl get installplan -n ${NAMESPACE}"
     exit 1
 fi
@@ -68,7 +68,7 @@ echo "Waiting for CSV ${CSV} to reach Succeeded phase..."
 kubectl wait --for=jsonpath='{.status.phase}'=Succeeded \
     csv/"${CSV}" -n "${NAMESPACE}" --timeout=300s
 
-echo "LVMS operator installed successfully!"
+echo "TopoLVM operator installed successfully!"
 
 # ---------------------------------------------------------------
 # Step 4: Create LVMCluster
@@ -79,7 +79,7 @@ echo "=== Creating LVMCluster ==="
 kubectl apply -f "$SCRIPT_DIR/lvmcluster.yaml"
 
 echo ""
-echo "=== LVMS operator installation complete ==="
+echo "=== TopoLVM operator installation complete ==="
 echo ""
 echo "The LVMCluster CR will auto-discover available block devices"
 echo "on worker nodes and create a default StorageClass."
