@@ -105,9 +105,11 @@ nodes:
   workers:
     - name: k8s-worker1
       ip: 192.168.150.20
+      data_disk_size: "50"
 
     - name: k8s-worker2
       ip: 192.168.150.21
+      data_disk_size: "50"
 
 # Kubernetes configuration (used by Day-1 Ansible, recorded here for reference)
 k8s:

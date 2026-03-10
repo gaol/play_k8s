@@ -8,6 +8,8 @@ spec:
     deviceClasses:
       - name: vg1
         default: true
+        devices:
+          - /dev/vdb
         nodeSelector:
           nodeSelectorTerms:
             - matchExpressions:
