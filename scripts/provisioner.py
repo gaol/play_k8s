@@ -852,6 +852,84 @@ def generate_ansible_files(config: dict, nodes: list):
 
 
 # ---------------------------------------------------------------------------
+# Full deploy: network + VMs + wait + Ansible
+# ---------------------------------------------------------------------------
+
+def _deploy(config: dict, nodes: list):
+    """Run the full provisioning pipeline: network → VMs → Ansible."""
+    ssh_user = config["ssh"]["username"]
+    ansible_dir = BASE_DIR / "ansible"
+
+    print("\n" + "=" * 60)
+    print("Full deploy: network + VMs + Ansible")
+    print("=" * 60)
+
+    # Step 1: Setup network
+    print("\n>>> Step 1/4: Setting up libvirt network...")
+    result = subprocess.run(
+        ["bash", str(RUN_DIR / "virt-install-setup-network.sh")],
+        cwd=RUN_DIR,
+    )
+    if result.returncode != 0:
+        print("ERROR: Network setup failed.", file=sys.stderr)
+        sys.exit(1)
+
+    # Step 2: Create VMs
+    print("\n>>> Step 2/4: Creating VMs...")
+    result = subprocess.run(
+        ["bash", str(RUN_DIR / "virt-install-create-vms.sh")],
+        cwd=RUN_DIR,
+    )
+    if result.returncode != 0:
+        print("ERROR: VM creation failed.", file=sys.stderr)
+        sys.exit(1)
+
+    # Step 3: Wait for VMs to be reachable via SSH
+    print("\n>>> Step 3/4: Waiting for VMs to be reachable via SSH...")
+    import time
+    all_ips = [str(n["ip"]) for n in nodes]
+    for ip in all_ips:
+        for attempt in range(1, 61):
+            result = subprocess.run(
+                ["ssh", "-o", "StrictHostKeyChecking=no",
+                 "-o", "UserKnownHostsFile=/dev/null",
+                 "-o", "ConnectTimeout=5",
+                 "-o", "LogLevel=ERROR",
+                 f"{ssh_user}@{ip}", "true"],
+                capture_output=True,
+            )
+            if result.returncode == 0:
+                print(f"  {ip} is reachable")
+                break
+            if attempt % 10 == 0:
+                print(f"  Waiting for {ip}... ({attempt}/60)")
+            time.sleep(5)
+        else:
+            print(f"ERROR: Timed out waiting for {ip}", file=sys.stderr)
+            sys.exit(1)
+
+    # Step 4: Run Ansible playbook
+    print("\n>>> Step 4/4: Running Ansible playbook...")
+    result = subprocess.run(
+        ["ansible-playbook", "-i", "inventory.ini", "site.yml"],
+        cwd=ansible_dir,
+    )
+    if result.returncode != 0:
+        print("ERROR: Ansible playbook failed.", file=sys.stderr)
+        sys.exit(1)
+
+    print("\n" + "=" * 60)
+    print("Deploy complete! K8s cluster is ready.")
+    print("=" * 60)
+    print(f"\nAccess the cluster:")
+    print(f"  ssh {ssh_user}@k8s-master1 kubectl get nodes")
+    print(f"\nOr copy kubeconfig to this host:")
+    print(f"  scp {ssh_user}@k8s-master1:~/.kube/config ~/.kube/config-k8s-lab")
+    print(f"  export KUBECONFIG=~/.kube/config-k8s-lab")
+    print(f"  kubectl get nodes")
+
+
+# ---------------------------------------------------------------------------
 # Terraform execution
 # ---------------------------------------------------------------------------
 
@@ -975,7 +1053,7 @@ def build_parser() -> argparse.ArgumentParser:
         "action",
         nargs="?",
         default="generate",
-        choices=["generate", "init", "plan", "apply", "destroy", "clean", "add-node"],
+        choices=["generate", "deploy", "init", "plan", "apply", "destroy", "clean", "add-node"],
         help="Action to perform (default: generate)",
     )
     parser.add_argument(
@@ -997,7 +1075,7 @@ def build_parser() -> argparse.ArgumentParser:
     grp = parser.add_argument_group("add-node options")
     grp.add_argument("--name", help="New node hostname")
     grp.add_argument("--ip", help="New node static IP address")
-    grp.add_argument("--type", choices=["master", "worker"], help="Node role")
+    grp.add_argument("--type", choices=["master", "worker", "infra"], help="Node role")
     grp.add_argument("--memory", default="8192", metavar="MB",
                      help="RAM in MB (default: 8192)")
     grp.add_argument("--vcpu", default="4", help="vCPU count (default: 4)")
@@ -1087,10 +1165,16 @@ def main():
         print(f"\n🤖 Ansible Day-1 (install K8s):")
         print(f"  cd {BASE_DIR / 'ansible'}")
         print(f"  ansible-playbook -i inventory.ini site.yml")
+        print(f"\n🚀 Or run everything in one shot:")
+        print(f"  python {Path(__file__).name} deploy")
         print(f"\n🌐 To resolve VM hostnames from the host (one-time setup):")
         print(f"  sudo mkdir -p /etc/systemd/resolved.conf.d")
         print(f"  sudo cp {RUN_DIR}/{dns_conf} /etc/systemd/resolved.conf.d/")
         print(f"  sudo systemctl restart systemd-resolved")
+        return
+
+    if args.action == "deploy":
+        _deploy(config, nodes)
         return
 
     if args.action == "init":
