@@ -842,6 +842,7 @@ def generate_ansible_files(config: dict, nodes: list):
         "masters": [{"name": n["name"], "ip": str(n["ip"])} for n in masters],
         "cni_plugins_version": k8s.get("cni_plugins_version", "1.9.0"),
         "calico_version": k8s.get("calico_version", "3.31.4"),
+        "olm_version": k8s.get("olm_version", "v0.41.0"),
         "operators": k8s.get("operators", []),
     }
 

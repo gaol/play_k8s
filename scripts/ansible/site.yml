@@ -33,6 +33,11 @@
   roles:
     - worker
 
+- name: Install OLM and catalog sources
+  hosts: masters[0]
+  roles:
+    - olm
+
 - name: Install operators
   hosts: masters[0]
   roles:

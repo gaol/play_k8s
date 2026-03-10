@@ -1,0 +1,65 @@
+---
+- name: Check if OLM is already installed
+  ansible.builtin.command:
+    cmd: kubectl get deployment olm-operator -n olm
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  register: olm_check
+  failed_when: false
+  changed_when: false
+
+- name: Download OLM install script
+  ansible.builtin.get_url:
+    url: "https://github.com/operator-framework/operator-lifecycle-manager/releases/download/{{ olm_version }}/install.sh"
+    dest: /tmp/olm-install.sh
+    mode: "0755"
+  when: olm_check.rc != 0
+
+- name: Install OLM
+  ansible.builtin.command:
+    cmd: bash /tmp/olm-install.sh {{ olm_version }}
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  when: olm_check.rc != 0
+
+- name: Wait for OLM operator to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=Available deployment/olm-operator -n olm --timeout=120s
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+
+- name: Wait for catalog operator to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=Available deployment/catalog-operator -n olm --timeout=120s
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+
+- name: Wait for OperatorHub community catalog to be ready
+  ansible.builtin.command:
+    cmd: >
+      kubectl wait --for=jsonpath='{.status.connectionState.lastObservedState}'=READY
+      catalogsource/operatorhubio-catalog -n olm --timeout=300s
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  retries: 3
+  delay: 30
+  register: catalog_ready
+  until: catalog_ready.rc == 0
+
+- name: List available catalog sources
+  ansible.builtin.command:
+    cmd: kubectl get catalogsource -n olm
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  register: catalog_list
+  changed_when: false
+
+- name: Show available catalogs
+  ansible.builtin.debug:
+    msg: "{{ catalog_list.stdout_lines }}"
