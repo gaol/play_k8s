@@ -378,7 +378,7 @@ def generate_network_xml(config: dict, nodes: list):
   <name>{net_name}</name>
   <forward mode='nat'/>
   <domain name='{domain}' localOnly='yes'/>
-  <bridge stp='on' delay='0'/>
+  <bridge stp='off' />
   <dns>
 {chr(10).join(host_entries)}
   </dns>
