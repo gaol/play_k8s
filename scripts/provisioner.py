@@ -708,7 +708,6 @@ def generate_virt_install_cleanup_script(config: dict, nodes: list):
 
     image_dir = os.path.expanduser(config["image_dir"])
     net_name = config["network"]["name"]
-    os_base_name = config["os_base_name"]
 
     script = f"""#!/bin/bash
 # Auto-generated cleanup script
@@ -725,7 +724,7 @@ echo ""
 echo "WARNING: This will:"
 echo "  - Shutdown and destroy all VMs"
 echo "  - Delete VM disk images"
-echo "  - Keep the base image and network"
+echo "  - Destroy and undefine the libvirt network"
 echo ""
 read -p "Continue? (yes/no): " confirm
 
@@ -760,14 +759,17 @@ for NODE_NAME in "${{NAMES[@]}}"; do
 done
 
 echo ""
+echo "=== Removing libvirt network ==="
+if virsh net-info {net_name} &>/dev/null; then
+    virsh net-destroy {net_name} 2>/dev/null || true
+    virsh net-undefine {net_name}
+    echo "  ✓ Network {net_name} removed"
+else
+    echo "  - Network {net_name} does not exist"
+fi
+
+echo ""
 echo "Cleanup complete!"
-echo ""
-echo "To also remove the network, run:"
-echo "  virsh net-destroy {net_name}"
-echo "  virsh net-undefine {net_name}"
-echo ""
-echo "To remove the base image:"
-echo "  rm -f $IMAGE_DIR/{os_base_name}.qcow2"
 """
 
     output_file = RUN_DIR / "virt-install-cleanup.sh"
