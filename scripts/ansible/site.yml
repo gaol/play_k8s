@@ -42,10 +42,8 @@
   hosts: masters[0]
   roles:
     - olm
-  when: install_operators | default(true)
 
 - name: Install operators
   hosts: masters[0]
   roles:
     - operators
-  when: install_operators | default(true)
