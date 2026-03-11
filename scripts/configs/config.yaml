@@ -63,6 +63,7 @@ run_once_commands:
 network:
   name: "k8s-net"
   domain: "k8s.local"
+  apps_domain: "apps.k8s.local"
   subnet: "192.168.150.0/24"
   gateway: "192.168.150.1"
   dhcp_range:
@@ -122,5 +123,8 @@ k8s:
   calico_version: "3.31.4"
   olm_version: "v0.41.0"
   longhorn_version: "v1.11.0"
+  ingress_http_nodeport: 30080
+  ingress_https_nodeport: 30443
   operators:
+    - nginx-ingress
     - longhorn

@@ -356,8 +356,25 @@ def generate_network_xml(config: dict, nodes: list):
             f' ip=\'{node["ip"]}\'/>'
         )
 
+    # Wildcard DNS for apps domain (e.g. *.apps.k8s.local → infra node)
+    apps_domain = net.get("apps_domain", "")
+    infra_nodes = [n for n in nodes if n.get("type") == "infra"]
+    infra_ip = infra_nodes[0]["ip"] if infra_nodes else ""
+
+    dnsmasq_opts = ""
+    if apps_domain and infra_ip:
+        dnsmasq_opts = f"""
+  <dnsmasq:options>
+    <dnsmasq:option value='address=/.{apps_domain}/{infra_ip}'/>
+  </dnsmasq:options>"""
+
+    # The xmlns:dnsmasq attribute is required when using <dnsmasq:options>
+    ns_attr = ""
+    if dnsmasq_opts:
+        ns_attr = " xmlns:dnsmasq='http://libvirt.org/schemas/network/dnsmasq/1.0'"
+
     xml = f"""\
-<network>
+<network{ns_attr}>
   <name>{net_name}</name>
   <forward mode='nat'/>
   <domain name='{domain}' localOnly='yes'/>
@@ -370,7 +387,7 @@ def generate_network_xml(config: dict, nodes: list):
       <range start='{net["dhcp_range"]["start"]}' end='{net["dhcp_range"]["end"]}'/>
 {chr(10).join(dhcp_hosts)}
     </dhcp>
-  </ip>
+  </ip>{dnsmasq_opts}
 </network>
 """
 
@@ -839,9 +856,13 @@ def generate_ansible_files(config: dict, nodes: list):
         "api_vip_hostname": vip.get("hostname", ""),
         "api_endpoint": f"{vip.get('hostname', '')}.{domain}:6443" if vip else "",
         "cluster_domain": domain,
+        "apps_domain": net.get("apps_domain", f"apps.{domain}"),
         "first_master": first_master.get("name", ""),
         "first_master_ip": first_master.get("ip", ""),
         "masters": [{"name": n["name"], "ip": str(n["ip"])} for n in masters],
+        "workers": [{"name": n["name"], "ip": str(n["ip"])} for n in workers],
+        "ingress_http_nodeport": k8s.get("ingress_http_nodeport", 30080),
+        "ingress_https_nodeport": k8s.get("ingress_https_nodeport", 30443),
         "cni_plugins_version": k8s.get("cni_plugins_version", "1.9.0"),
         "calico_version": k8s.get("calico_version", "3.31.4"),
         "olm_version": k8s.get("olm_version", "v0.41.0"),

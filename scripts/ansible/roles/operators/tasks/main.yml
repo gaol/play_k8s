@@ -20,6 +20,8 @@
   environment:
     KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
     LONGHORN_VERSION: "{{ longhorn_version | default('v1.11.0') }}"
+    INGRESS_HTTP_NODEPORT: "{{ ingress_http_nodeport | default(30080) }}"
+    INGRESS_HTTPS_NODEPORT: "{{ ingress_https_nodeport | default(30443) }}"
   loop: "{{ operators }}"
   register: operator_results
 
