@@ -104,7 +104,6 @@
       - kubeadm
       - kubectl
       - iproute-tc
-      - lvm2
     state: present
 
 - name: Enable and start CRI-O

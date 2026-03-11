@@ -1,0 +1,29 @@
+---
+# Longhorn prerequisites for worker nodes (Fedora/RHEL)
+# Ref: https://longhorn.io/docs/1.11.0/deploy/install/#installation-requirements
+
+- name: Load iscsi_tcp kernel module
+  ansible.builtin.modprobe:
+    name: iscsi_tcp
+    state: present
+
+- name: Persist iscsi_tcp kernel module across reboots
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/longhorn.conf
+    content: |
+      iscsi_tcp
+
+- name: Install Longhorn prerequisite packages
+  ansible.builtin.dnf:
+    name:
+      - iscsi-initiator-utils
+      - nfs-utils
+      - cryptsetup
+      - device-mapper
+    state: present
+
+- name: Enable and start iscsid
+  ansible.builtin.systemd:
+    name: iscsid
+    enabled: true
+    state: started

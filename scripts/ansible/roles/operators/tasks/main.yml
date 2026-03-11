@@ -19,6 +19,7 @@
   become: false
   environment:
     KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+    LONGHORN_VERSION: "{{ longhorn_version | default('v1.11.0') }}"
   loop: "{{ operators }}"
   register: operator_results
 

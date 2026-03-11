@@ -843,6 +843,7 @@ def generate_ansible_files(config: dict, nodes: list):
         "cni_plugins_version": k8s.get("cni_plugins_version", "1.9.0"),
         "calico_version": k8s.get("calico_version", "3.31.4"),
         "olm_version": k8s.get("olm_version", "v0.41.0"),
+        "longhorn_version": k8s.get("longhorn_version", "v1.11.0"),
         "operators": k8s.get("operators", []),
     }
 

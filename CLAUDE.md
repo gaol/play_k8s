@@ -147,7 +147,8 @@ The Ansible playbook executes roles in order:
 4. **calico** — Calico CNI via Tigera operator
 5. **master-join** — additional masters join control plane
 6. **worker** — workers join cluster
-7. **operators** — install configured operators (e.g., lvm-operator)
+7. **longhorn-prereqs** — iSCSI/NFS packages for Longhorn storage (workers)
+8. **operators** — install configured operators (e.g., longhorn)
 
 To add a new operator:
 1. Create `scripts/ansible/operators/<name>/install.sh` (and any manifests)

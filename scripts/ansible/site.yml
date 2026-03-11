@@ -33,12 +33,19 @@
   roles:
     - worker
 
+- name: Install Longhorn prerequisites on worker nodes
+  hosts: workers
+  roles:
+    - longhorn-prereqs
+
 - name: Install OLM and catalog sources
   hosts: masters[0]
   roles:
     - olm
+  when: install_operators | default(true)
 
 - name: Install operators
   hosts: masters[0]
   roles:
     - operators
+  when: install_operators | default(true)
