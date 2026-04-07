@@ -1,6 +1,7 @@
 #cloud-config
 hostname: {{ node.name }}
 fqdn: {{ node.name }}.{{ domain }}
+prefer_fqdn_over_hostname: false
 manage_etc_hosts: false
 timezone: "{{ node.timezone | default('UTC') }}"
 
