@@ -1,0 +1,32 @@
+---
+- name: Create operators staging directory on master
+  ansible.builtin.file:
+    path: /tmp/k8s-operators
+    state: directory
+    mode: "0755"
+  when: operators | length > 0
+
+- name: Copy operator directories to master
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../operators/{{ item }}/"
+    dest: "/tmp/k8s-operators/{{ item }}/"
+    mode: "0755"
+  loop: "{{ operators }}"
+
+- name: Run operator install scripts
+  ansible.builtin.command:
+    cmd: bash /tmp/k8s-operators/{{ item }}/install.sh
+    chdir: /tmp/k8s-operators/{{ item }}
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  loop: "{{ operators }}"
+  register: operator_results
+
+- name: Show operator install results
+  ansible.builtin.debug:
+    msg: "{{ item.stdout_lines }}"
+  loop: "{{ operator_results.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: operators | length > 0

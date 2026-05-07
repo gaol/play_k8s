@@ -1,0 +1,45 @@
+---
+- name: Check if Cilium CLI is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/cilium
+  register: cilium_cli
+
+- name: Detect architecture
+  ansible.builtin.set_fact:
+    cilium_arch: "{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}"
+
+- name: Download Cilium CLI
+  ansible.builtin.get_url:
+    url: "https://github.com/cilium/cilium-cli/releases/latest/download/cilium-linux-{{ cilium_arch }}.tar.gz"
+    dest: /tmp/cilium-cli.tar.gz
+  when: not cilium_cli.stat.exists
+
+- name: Install Cilium CLI
+  ansible.builtin.unarchive:
+    src: /tmp/cilium-cli.tar.gz
+    dest: /usr/local/bin/
+    remote_src: true
+  when: not cilium_cli.stat.exists
+
+- name: Install Cilium CNI
+  ansible.builtin.command:
+    cmd: >
+      cilium install
+      --set cluster.name=k8s
+      --set ipam.operator.clusterPoolIPv4PodCIDRList={{ pod_network_cidr }}
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  register: cilium_install
+  changed_when: "'Cilium was successfully installed' in cilium_install.stdout"
+
+- name: Wait for Cilium to be ready
+  ansible.builtin.command:
+    cmd: cilium status --wait
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  retries: 10
+  delay: 30
+  register: cilium_status
+  until: cilium_status.rc == 0
