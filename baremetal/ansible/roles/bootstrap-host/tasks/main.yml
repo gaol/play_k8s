@@ -1,0 +1,84 @@
+---
+- name: Install bootstrap host packages
+  ansible.builtin.apt:
+    name:
+      - dnsmasq
+      - nginx
+      - xorriso
+      - p7zip-full
+      - genisoimage
+      - python3-pip
+      - curl
+    state: present
+    update_cache: true
+
+- name: Stop systemd-resolved (conflicts with dnsmasq on port 53)
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Configure resolv.conf to use dnsmasq
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver 127.0.0.1
+      search {{ cluster_domain }}
+
+- name: Deploy dnsmasq configuration
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../run/dnsmasq.conf"
+    dest: /etc/dnsmasq.conf
+    mode: "0644"
+  notify: restart dnsmasq
+
+- name: Enable and start dnsmasq
+  ansible.builtin.systemd:
+    name: dnsmasq
+    enabled: true
+    state: started
+
+- name: Create ISO directory
+  ansible.builtin.file:
+    path: "{{ iso_dir | default('/opt/baremetal/iso') }}"
+    state: directory
+    mode: "0755"
+
+- name: Deploy nginx site configuration
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../run/nginx-site.conf"
+    dest: /etc/nginx/sites-available/baremetal.conf
+    mode: "0644"
+  notify: restart nginx
+
+- name: Enable nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/baremetal.conf
+    dest: /etc/nginx/sites-enabled/baremetal.conf
+    state: link
+  notify: restart nginx
+
+- name: Remove default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: restart nginx
+
+- name: Enable and start nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started
+
+- name: Configure UFW firewall rules
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+  loop:
+    - { port: "53", proto: "udp" }
+    - { port: "53", proto: "tcp" }
+    - { port: "{{ bootstrap_http_port | default(8080) }}", proto: "tcp" }
+    - { port: "22", proto: "tcp" }
+  failed_when: false
