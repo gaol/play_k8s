@@ -1,0 +1,71 @@
+---
+- name: Check if cluster is already initialized
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_conf
+
+- name: Initialize Kubernetes cluster
+  ansible.builtin.command:
+    cmd: >
+      kubeadm init
+      --control-plane-endpoint={{ api_endpoint }}
+      --pod-network-cidr={{ pod_network_cidr }}
+      --service-cidr={{ service_cidr }}
+      --upload-certs
+      --apiserver-advertise-address={{ ansible_host }}
+  when: not kubeadm_conf.stat.exists
+  register: kubeadm_init
+
+- name: Create .kube directory for user
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Copy admin kubeconfig for user
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    remote_src: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+
+- name: Generate certificate key for control plane join
+  ansible.builtin.command:
+    cmd: kubeadm init phase upload-certs --upload-certs
+  register: upload_certs_output
+
+- name: Extract certificate key
+  ansible.builtin.set_fact:
+    certificate_key: "{{ upload_certs_output.stdout_lines[-1] }}"
+
+- name: Generate join command
+  ansible.builtin.command:
+    cmd: kubeadm token create --print-join-command
+  register: join_command_output
+
+- name: Set join command fact
+  ansible.builtin.set_fact:
+    kubeadm_join_command: "{{ join_command_output.stdout }}"
+
+- name: Store join facts for other plays
+  ansible.builtin.add_host:
+    name: k8s_join_info
+    groups: _join_info
+    kubeadm_join_command: "{{ kubeadm_join_command }}"
+    certificate_key: "{{ certificate_key }}"
+
+- name: Configure kube-proxy to use IPVS mode
+  ansible.builtin.shell:
+    cmd: |
+      kubectl get configmap kube-proxy -n kube-system -o yaml | \
+        sed 's/mode: ""/mode: "{{ kube_proxy_mode }}"/' | \
+        kubectl apply -f -
+      kubectl rollout restart daemonset kube-proxy -n kube-system
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  when: kube_proxy_mode == "ipvs"
