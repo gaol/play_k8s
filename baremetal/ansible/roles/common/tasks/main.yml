@@ -1,0 +1,155 @@
+---
+# --- Kernel modules and sysctl for K8s networking ---
+
+- name: Persist kernel modules for K8s networking
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      overlay
+      br_netfilter
+  register: k8s_modules_file
+
+- name: Load kernel modules
+  ansible.builtin.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+
+- name: Persist sysctl settings for K8s networking
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-k8s.conf
+    content: |
+      net.ipv4.ip_forward = 1
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+  register: k8s_sysctl_file
+
+- name: Apply sysctl settings
+  ansible.builtin.command:
+    cmd: sysctl --system
+  when: k8s_sysctl_file.changed
+  changed_when: true
+
+# --- Disable swap ---
+
+- name: Disable all active swap
+  ansible.builtin.command:
+    cmd: swapoff -a
+  changed_when: true
+
+- name: Comment out swap entries in fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s)'
+    replace: '# \1'
+
+# --- Install IPVS kernel modules (for kube-proxy IPVS mode) ---
+
+- name: Install IPVS packages
+  ansible.builtin.apt:
+    name:
+      - ipvsadm
+      - ipset
+    state: present
+  when: kube_proxy_mode == "ipvs"
+
+- name: Persist IPVS kernel modules
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/ipvs.conf
+    content: |
+      ip_vs
+      ip_vs_rr
+      ip_vs_wrr
+      ip_vs_sh
+      nf_conntrack
+  when: kube_proxy_mode == "ipvs"
+
+- name: Load IPVS kernel modules
+  ansible.builtin.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - ip_vs
+    - ip_vs_rr
+    - ip_vs_wrr
+    - ip_vs_sh
+    - nf_conntrack
+  when: kube_proxy_mode == "ipvs"
+
+# --- CRI-O container runtime ---
+
+- name: Create keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Add CRI-O apt key
+  ansible.builtin.apt_key:
+    url: "https://pkgs.k8s.io/addons:/cri-o:/stable:/v{{ k8s_version }}/deb/Release.key"
+    keyring: /etc/apt/keyrings/cri-o-apt-keyring.gpg
+    state: present
+
+- name: Add CRI-O apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://pkgs.k8s.io/addons:/cri-o:/stable:/v{{ k8s_version }}/deb/ /"
+    filename: cri-o
+    state: present
+
+- name: Install CRI-O
+  ansible.builtin.apt:
+    name: cri-o
+    state: present
+    update_cache: true
+
+- name: Enable and start CRI-O
+  ansible.builtin.systemd:
+    name: crio
+    enabled: true
+    state: started
+
+- name: Configure crictl to use CRI-O socket
+  ansible.builtin.copy:
+    dest: /etc/crictl.yaml
+    content: |
+      runtime-endpoint: unix:///var/run/crio/crio.sock
+      image-endpoint: unix:///var/run/crio/crio.sock
+
+# --- Kubernetes packages ---
+
+- name: Add Kubernetes apt key
+  ansible.builtin.apt_key:
+    url: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key"
+    keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    state: present
+
+- name: Add Kubernetes apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/ /"
+    filename: kubernetes
+    state: present
+
+- name: Install Kubernetes packages
+  ansible.builtin.apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+    update_cache: true
+
+- name: Hold Kubernetes packages
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Enable kubelet
+  ansible.builtin.systemd:
+    name: kubelet
+    enabled: true
