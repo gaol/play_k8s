@@ -5,8 +5,21 @@ vars:
   PROVISIONER: "uv run python3 provisioner.py --config {{.CONFIG}}"
 
 tasks:
+  init:
+    desc: Install Python dependencies via uv
+    cmds:
+      - uv sync
+    sources:
+      - pyproject.toml
+      - uv.lock
+    generates:
+      - .venv/**/*
+    status:
+      - test -d .venv
+
   generate:
     desc: Generate all files from config.yaml (autoinstall, ansible, DNS, HTTP)
+    deps: [init]
     cmds:
       - "{{.PROVISIONER}} generate"
 
@@ -18,16 +31,19 @@ tasks:
 
   build-iso:
     desc: Build autoinstall ISOs (all nodes, or NODE=xxx for one)
+    deps: [init]
     cmds:
       - "{{.PROVISIONER}} build-iso {{if .NODE}}--node {{.NODE}}{{end}}"
 
   deploy:
     desc: Full cluster deployment (generate → bootstrap → ISO → boot → ansible)
+    deps: [init]
     cmds:
       - "{{.PROVISIONER}} deploy"
 
   add-node:
     desc: "Add a single node to the cluster: task add-node NODE=worker4"
+    deps: [init]
     requires:
       vars: [NODE]
     cmds:
@@ -62,6 +78,7 @@ tasks:
 
   remove-node:
     desc: "Drain and remove a node: task remove-node NODE=worker4"
+    deps: [init]
     requires:
       vars: [NODE]
     cmds:
@@ -80,6 +97,7 @@ tasks:
 
   power:
     desc: "Power control: task power NODE=worker1 ACTION=on|off|status|cycle"
+    deps: [init]
     requires:
       vars: [NODE, ACTION]
     cmds:
