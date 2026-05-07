@@ -1,0 +1,60 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  identity:
+    hostname: {{ node.name }}
+    username: {{ ssh.username }}
+    password: "{{ ssh.password }}"
+  ssh:
+    install-server: true
+    authorized-keys:
+      - {{ ssh_public_key }}
+    allow-pw: true
+  storage:
+    layout:
+      name: direct
+      match:
+        path: {{ node.disk }}
+  network:
+    version: 2
+    ethernets:
+      {{ node.interface }}:
+        dhcp4: false
+        addresses:
+          - {{ node.ip }}/{{ prefix_length }}
+        gateway4: {{ network.gateway }}
+        nameservers:
+          addresses:
+            - {{ network.dns }}
+          search:
+            - {{ network.domain }}
+  packages:
+    - openssh-server
+    - curl
+    - apt-transport-https
+    - ca-certificates
+    - gnupg
+    - python3
+    - open-iscsi
+    - nfs-common
+  late-commands:
+    - echo '{{ node.name }}' > /target/etc/hostname
+    # Static /etc/hosts with all cluster nodes
+    - |
+      cat > /target/etc/hosts << 'HOSTS'
+      127.0.0.1   localhost
+      ::1         localhost ip6-localhost ip6-loopback
+      {{ node.ip }}   {{ node.name }} {{ node.name }}.{{ network.domain }}
+{% for n in all_nodes %}
+{% if n.name != node.name %}
+      {{ n.ip }}   {{ n.name }} {{ n.name }}.{{ network.domain }}
+{% endif %}
+{% endfor %}
+{% if k8s_api_vip %}
+      {{ k8s_api_vip.ip }}   {{ k8s_api_vip.hostname }} {{ k8s_api_vip.hostname }}.{{ network.domain }}
+{% endif %}
+      {{ bootstrap_host.ip }}   {{ bootstrap_host.hostname }} {{ bootstrap_host.hostname }}.{{ network.domain }}
+      HOSTS

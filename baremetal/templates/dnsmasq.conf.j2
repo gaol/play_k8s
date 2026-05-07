@@ -1,0 +1,32 @@
+# DNS server for {{ network.domain }}
+# Auto-generated — do not edit
+
+# Listen on all interfaces
+listen-address=0.0.0.0
+bind-interfaces
+
+# Upstream DNS
+server={{ bootstrap_host.dns_upstream }}
+
+# Local domain
+domain={{ network.domain }}
+local=/{{ network.domain }}/
+
+# Host records for all cluster nodes
+{% for node in all_nodes %}
+host-record={{ node.name }}.{{ network.domain }},{{ node.ip }}
+host-record={{ node.name }},{{ node.ip }}
+{% endfor %}
+
+# Bootstrap host
+host-record={{ bootstrap_host.hostname }}.{{ network.domain }},{{ bootstrap_host.ip }}
+host-record={{ bootstrap_host.hostname }},{{ bootstrap_host.ip }}
+
+# K8s API VIP
+{% if k8s_api_vip %}
+host-record={{ k8s_api_vip.hostname }}.{{ network.domain }},{{ k8s_api_vip.ip }}
+host-record={{ k8s_api_vip.hostname }},{{ k8s_api_vip.ip }}
+{% endif %}
+
+# Do not read /etc/resolv.conf
+no-resolv

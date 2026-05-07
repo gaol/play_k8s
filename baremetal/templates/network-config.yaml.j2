@@ -1,0 +1,15 @@
+version: 2
+ethernets:
+  {{ node.interface }}:
+    dhcp4: false
+    dhcp6: false
+    addresses:
+      - {{ node.ip }}/{{ prefix_length }}
+    routes:
+      - to: 0.0.0.0/0
+        via: {{ network.gateway }}
+    nameservers:
+      addresses:
+        - {{ network.dns }}
+      search:
+        - {{ network.domain }}

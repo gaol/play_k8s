@@ -1,0 +1,14 @@
+# HTTP server for serving autoinstall ISOs and configs
+# Auto-generated — do not edit
+
+server {
+    listen {{ bootstrap_host.http_port }};
+    server_name {{ bootstrap_host.hostname }};
+
+    root {{ os.iso_dir }};
+    autoindex on;
+
+    location /iso/ {
+        alias {{ os.iso_dir }}/;
+    }
+}

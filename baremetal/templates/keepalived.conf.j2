@@ -1,0 +1,22 @@
+# Keepalived VRRP for K8s API VIP
+# Auto-generated — do not edit
+
+vrrp_script chk_haproxy {
+    script "/usr/bin/killall -0 haproxy"
+    interval 2
+    weight 2
+}
+
+vrrp_instance K8S_API {
+    interface {{ interface }}
+    state {{ 'MASTER' if priority == 101 else 'BACKUP' }}
+    priority {{ priority }}
+
+    virtual_ipaddress {
+        {{ api_vip_ip }}
+    }
+
+    track_script {
+        chk_haproxy
+    }
+}
