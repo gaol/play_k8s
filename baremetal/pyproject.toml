@@ -1,0 +1,13 @@
+[project]
+name = "baremetal-k8s-provisioner"
+version = "0.1.0"
+description = "Baremetal K8s cluster provisioner via Redfish BMC and Ubuntu autoinstall"
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+provisioner = "provisioner:main"

@@ -2,7 +2,7 @@ version: "3"
 
 vars:
   CONFIG: '{{.CONFIG | default "configs/config.yaml"}}'
-  PROVISIONER: "python3 provisioner.py --config {{.CONFIG}}"
+  PROVISIONER: "uv run python3 provisioner.py --config {{.CONFIG}}"
 
 tasks:
   generate:
@@ -36,7 +36,7 @@ tasks:
       - "{{.PROVISIONER}} boot-node --node {{.NODE}}"
       - |
         echo "Waiting for {{.NODE}} to become reachable via SSH..."
-        NODE_IP=$(python3 -c "
+        NODE_IP=$(uv run python3 -c "
         import yaml
         cfg = yaml.safe_load(open('{{.CONFIG}}'))
         nodes = cfg['nodes']
@@ -46,7 +46,7 @@ tasks:
                     print(n['ip'])
                     exit()
         ")
-        SSH_USER=$(python3 -c "
+        SSH_USER=$(uv run python3 -c "
         import yaml
         cfg = yaml.safe_load(open('{{.CONFIG}}'))
         print(cfg['bootstrap_host']['ssh']['username'])
@@ -66,12 +66,12 @@ tasks:
       vars: [NODE]
     cmds:
       - |
-        MASTER_IP=$(python3 -c "
+        MASTER_IP=$(uv run python3 -c "
         import yaml
         cfg = yaml.safe_load(open('{{.CONFIG}}'))
         print(cfg['nodes']['masters'][0]['ip'])
         ")
-        SSH_USER=$(python3 -c "
+        SSH_USER=$(uv run python3 -c "
         import yaml
         cfg = yaml.safe_load(open('{{.CONFIG}}'))
         print(cfg['bootstrap_host']['ssh']['username'])
@@ -84,7 +84,7 @@ tasks:
       vars: [NODE, ACTION]
     cmds:
       - |
-        python3 -c "
+        uv run python3 -c "
         import yaml, subprocess, sys
         cfg = yaml.safe_load(open('{{.CONFIG}}'))
         defaults = cfg['nodes'].get('defaults', {})
