@@ -1,0 +1,59 @@
+---
+# Baremetal K8s Day-1 cluster installation
+# Run: ansible-playbook -i inventory.ini site.yml
+#
+# Tags:
+#   bootstrap — only set up the bootstrap host
+#   k8s       — only run K8s installation (skip bootstrap)
+
+- name: Set up bootstrap host (DNS, HTTP, ISO tools)
+  hosts: bootstrap
+  tags: [bootstrap]
+  roles:
+    - bootstrap-host
+
+- name: Install common packages on K8s nodes
+  hosts: masters:workers
+  tags: [k8s]
+  roles:
+    - common
+
+- name: Configure HA load balancer on infra nodes
+  hosts: infra
+  tags: [k8s]
+  roles:
+    - ha-control-plane
+
+- name: Initialize first control plane node
+  hosts: masters[0]
+  tags: [k8s]
+  roles:
+    - master-init
+
+- name: Install CNI plugin
+  hosts: masters[0]
+  tags: [k8s]
+  roles:
+    - role: cilium
+      when: cni | lower == "cilium"
+    - role: calico
+      when: cni | lower == "calico"
+
+- name: Join additional control plane nodes
+  hosts: masters[1:]
+  serial: 1
+  tags: [k8s]
+  roles:
+    - master-join
+
+- name: Join worker nodes
+  hosts: workers
+  tags: [k8s]
+  roles:
+    - worker
+
+- name: Install operators
+  hosts: masters[0]
+  tags: [k8s]
+  roles:
+    - operators
