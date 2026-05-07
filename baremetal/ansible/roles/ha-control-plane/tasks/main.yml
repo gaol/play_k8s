@@ -1,0 +1,47 @@
+---
+- name: Install HAProxy and keepalived
+  ansible.builtin.apt:
+    name:
+      - haproxy
+      - keepalived
+    state: present
+
+- name: Deploy HAProxy configuration
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../templates/haproxy.cfg.j2"
+    dest: /etc/haproxy/haproxy.cfg
+    mode: "0644"
+  notify: restart haproxy
+
+- name: Determine keepalived priority
+  ansible.builtin.set_fact:
+    keepalived_priority: "{{ 101 - groups['infra'].index(inventory_hostname) }}"
+
+- name: Deploy keepalived configuration
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../templates/keepalived.conf.j2"
+    dest: /etc/keepalived/keepalived.conf
+    mode: "0644"
+  vars:
+    interface: "{{ hostvars[inventory_hostname].get('interface', 'eno1') }}"
+    priority: "{{ keepalived_priority }}"
+  notify: restart keepalived
+
+- name: Enable net.ipv4.ip_nonlocal_bind for keepalived
+  ansible.builtin.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: "1"
+    state: present
+    reload: true
+
+- name: Enable and start HAProxy
+  ansible.builtin.systemd:
+    name: haproxy
+    enabled: true
+    state: started
+
+- name: Enable and start keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    enabled: true
+    state: started
