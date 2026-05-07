@@ -252,22 +252,31 @@ def main():
         bootstrap = config["bootstrap_host"]
         ssh_user = bootstrap["ssh"]["username"]
         iso_dir = config["os"]["iso_dir"]
+        base_iso = f"{iso_dir}/{os.path.basename(config['os']['iso_url'])}"
         scripts_dir = BASE_DIR / "scripts"
 
         for node in target_nodes:
             print(f"\nBuilding ISO for {node['name']}...")
-            subprocess.run([
-                "ssh", f"{ssh_user}@{bootstrap['ip']}",
-                "bash", "-s", "--",
-                node["name"], iso_dir,
-            ], stdin=open(scripts_dir / "build-iso.sh"),
-               check=True)
-            print(f"  Copying autoinstall config to bootstrap host...")
+            # Copy autoinstall configs to bootstrap host
             subprocess.run([
                 "scp",
                 str(RUN_DIR / f"autoinstall-{node['name']}.yaml"),
                 str(RUN_DIR / f"network-config-{node['name']}.yaml"),
                 f"{ssh_user}@{bootstrap['ip']}:{iso_dir}/",
+            ], check=True)
+            # Copy build-iso.sh to bootstrap host and run it
+            subprocess.run([
+                "scp", str(scripts_dir / "build-iso.sh"),
+                f"{ssh_user}@{bootstrap['ip']}:/tmp/build-iso.sh",
+            ], check=True)
+            subprocess.run([
+                "ssh", f"{ssh_user}@{bootstrap['ip']}",
+                "bash", "/tmp/build-iso.sh",
+                "--base-iso", base_iso,
+                "--output", f"{iso_dir}/{node['name']}.iso",
+                "--user-data", f"{iso_dir}/autoinstall-{node['name']}.yaml",
+                "--network-config", f"{iso_dir}/network-config-{node['name']}.yaml",
+                "--label", f"AUTOINSTALL-{node['name'].upper()}",
             ], check=True)
 
     elif args.action in ("boot-node", "boot-all"):
