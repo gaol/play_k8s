@@ -1,0 +1,115 @@
+version: "3"
+
+vars:
+  CONFIG: '{{.CONFIG | default "configs/config.yaml"}}'
+  PROVISIONER: "python3 provisioner.py --config {{.CONFIG}}"
+
+tasks:
+  generate:
+    desc: Generate all files from config.yaml (autoinstall, ansible, DNS, HTTP)
+    cmds:
+      - "{{.PROVISIONER}} generate"
+
+  bootstrap:
+    desc: Set up bootstrap host (DNS, HTTP, ISO tools)
+    deps: [generate]
+    cmds:
+      - ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags bootstrap
+
+  build-iso:
+    desc: Build autoinstall ISOs (all nodes, or NODE=xxx for one)
+    cmds:
+      - "{{.PROVISIONER}} build-iso {{if .NODE}}--node {{.NODE}}{{end}}"
+
+  deploy:
+    desc: Full cluster deployment (generate → bootstrap → ISO → boot → ansible)
+    cmds:
+      - "{{.PROVISIONER}} deploy"
+
+  add-node:
+    desc: "Add a single node to the cluster: task add-node NODE=worker4"
+    requires:
+      vars: [NODE]
+    cmds:
+      - "{{.PROVISIONER}} generate"
+      - "{{.PROVISIONER}} build-iso --node {{.NODE}}"
+      - "{{.PROVISIONER}} boot-node --node {{.NODE}}"
+      - |
+        echo "Waiting for {{.NODE}} to become reachable via SSH..."
+        NODE_IP=$(python3 -c "
+        import yaml
+        cfg = yaml.safe_load(open('{{.CONFIG}}'))
+        nodes = cfg['nodes']
+        for group in ['infra', 'masters', 'workers']:
+            for n in nodes.get(group, []):
+                if n['name'] == '{{.NODE}}':
+                    print(n['ip'])
+                    exit()
+        ")
+        SSH_USER=$(python3 -c "
+        import yaml
+        cfg = yaml.safe_load(open('{{.CONFIG}}'))
+        print(cfg['bootstrap_host']['ssh']['username'])
+        ")
+        for i in $(seq 1 120); do
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              -o ConnectTimeout=5 -o LogLevel=ERROR \
+              "$SSH_USER@$NODE_IP" true 2>/dev/null && break
+          [ $((i % 10)) -eq 0 ] && echo "  Still waiting... ($i/120)"
+          sleep 10
+        done
+      - ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags k8s --limit {{.NODE}}
+
+  remove-node:
+    desc: "Drain and remove a node: task remove-node NODE=worker4"
+    requires:
+      vars: [NODE]
+    cmds:
+      - |
+        MASTER_IP=$(python3 -c "
+        import yaml
+        cfg = yaml.safe_load(open('{{.CONFIG}}'))
+        print(cfg['nodes']['masters'][0]['ip'])
+        ")
+        SSH_USER=$(python3 -c "
+        import yaml
+        cfg = yaml.safe_load(open('{{.CONFIG}}'))
+        print(cfg['bootstrap_host']['ssh']['username'])
+        ")
+        ssh "$SSH_USER@$MASTER_IP" "kubectl drain {{.NODE}} --ignore-daemonsets --delete-emptydir-data --force && kubectl delete node {{.NODE}}"
+
+  power:
+    desc: "Power control: task power NODE=worker1 ACTION=on|off|status|cycle"
+    requires:
+      vars: [NODE, ACTION]
+    cmds:
+      - |
+        python3 -c "
+        import yaml, subprocess, sys
+        cfg = yaml.safe_load(open('{{.CONFIG}}'))
+        defaults = cfg['nodes'].get('defaults', {})
+        default_rf = defaults.get('redfish', {})
+        for group in ['infra', 'masters', 'workers']:
+            for n in cfg['nodes'].get(group, []):
+                if n['name'] == '{{.NODE}}':
+                    rf = {**default_rf, **n.get('redfish', {})}
+                    bmc = n['bmc']
+                    subprocess.run([
+                        'bash', 'scripts/redfish.sh', 'power-{{.ACTION}}',
+                        bmc['address'], bmc['username'], bmc['password'],
+                        rf.get('scheme', 'https'), rf.get('base_uri', '/redfish/v1/Systems/1'),
+                    ], check=True)
+                    sys.exit()
+        print('Node {{.NODE}} not found', file=sys.stderr)
+        sys.exit(1)
+        "
+
+  reboot:
+    desc: "Reboot a node: task reboot NODE=worker1"
+    requires:
+      vars: [NODE]
+    cmds:
+      - task: power
+        vars:
+          NODE: "{{.NODE}}"
+          ACTION: "cycle"
